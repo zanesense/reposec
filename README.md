@@ -265,42 +265,25 @@ Error responses use stable `code` values: `not_found`, `private`, `rate_limited`
 
 ### Screenshots
 
-> **TODO:** Replace these placeholders with the actual images bundled in `public/screenshots/`.
-
 **Landing page**
 
-```text
-TODO: insert public/screenshots/01-home-light.png
 ![RepoSec landing page](public/screenshots/01-home-light.png)
-```
 
 **Scanning state**
 
-```text
-TODO: insert public/screenshots/02-scan-loading.png
 ![RepoSec scan-in-progress loader](public/screenshots/02-scan-loading.png)
-```
 
 **Report overview**
 
-```text
-TODO: insert public/screenshots/03-report-overview.png
 ![RepoSec report overview](public/screenshots/03-report-overview.png)
-```
 
 **Findings tab**
 
-```text
-TODO: insert public/screenshots/04-report-findings.png
 ![RepoSec findings tab](public/screenshots/04-report-findings.png)
-```
 
 **Export tab**
 
-```text
-TODO: insert public/screenshots/05-report-export.png
 ![RepoSec export tab](public/screenshots/05-report-export.png)
-```
 
 To regenerate them: `npm run screenshots` (builds the app, serves it on port 4001, and captures each route with Playwright).
 
