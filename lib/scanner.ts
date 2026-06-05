@@ -12,6 +12,7 @@ import type {
   Severity,
 } from "./types";
 import {
+  fileContainsAnyNeedle,
   isCommentedLine,
   isLikelyPlaceholder,
   SECRET_PATTERNS,
@@ -33,10 +34,6 @@ function findFile(files: RepoFile[], path: string): RepoFile | undefined {
 
 function getLines(content: string): string[] {
   return content.split(/\r?\n/);
-}
-
-function lineNumberOf(content: string, index: number): number {
-  return content.slice(0, index).split(/\r?\n/).length;
 }
 
 function makeFinding(
@@ -220,7 +217,7 @@ function checkEnvironment(ctx: ScanContext): void {
     presentFile(ctx, env);
     const lines = getLines(f.content);
     const sample = lines
-      .filter((l) => l.trim() && !isCommentedLine(l))
+      .filter((l) => l.trim() && !isCommentedLine(l, "env"))
       .slice(0, 3)
       .map(maskLine)
       .join(" | ");
@@ -1465,9 +1462,10 @@ function checkCodePatterns(ctx: ScanContext): void {
     if (file.content.length > 1_500_000) continue;
 
     const lines = getLines(file.content);
+    const ext = lower.match(/\.([a-z0-9]+)$/)?.[1] ?? "default";
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i] ?? "";
-      if (isCommentedLine(line)) continue;
+      if (isCommentedLine(line, ext)) continue;
 
       const evalMatch = /\beval\s*\(/.exec(line);
       if (evalMatch) {
@@ -1690,12 +1688,36 @@ function checkSecrets(ctx: ScanContext): void {
     "yarn.lock",
     "pnpm-lock.yaml",
     "bun.lockb",
+    "composer.lock",
+    "Gemfile.lock",
+    "Cargo.lock",
+    "poetry.lock",
+    "Pipfile.lock",
     "LICENSE",
     "SECURITY.md",
     "README.md",
     "CHANGELOG.md",
     "CODEOWNERS",
   ]);
+  const SKIP_PATH_TOKENS = [
+    "node_modules/",
+    "vendor/",
+    "dist/",
+    "build/",
+    ".next/",
+    "out/",
+    "coverage/",
+    "target/",
+    "bower_components/",
+    "jspm_packages/",
+    ".gradle/",
+    "Pods/",
+    ".terraform/",
+    ".venv/",
+    "venv/",
+    "__pycache__/",
+    ".git/",
+  ];
   const SCAN_EXTENSIONS = [
     ".ts",
     ".tsx",
@@ -1715,65 +1737,204 @@ function checkSecrets(ctx: ScanContext): void {
     ".swift",
     ".php",
     ".sh",
+    ".toml",
+    ".ini",
+    ".cfg",
+    ".conf",
+    ".config",
+    ".pem",
+    ".key",
+    ".crt",
+    ".npmrc",
+    ".pypirc",
+    ".netrc",
+    ".tf",
+    ".tfvars",
+    ".bash",
+    ".zsh",
+    ".fish",
+    ".ps1",
+    ".dart",
+    ".lua",
+    ".rs",
+    ".scala",
+    ".clj",
+    ".ex",
+    ".exs",
+    ".xml",
+    ".properties",
+    ".htaccess",
   ];
+  const SCAN_FILENAMES = new Set([
+    ".env",
+    ".env.local",
+    ".env.development",
+    ".env.production",
+    ".env.test",
+    ".npmrc",
+    ".pypirc",
+    ".netrc",
+    ".htpasswd",
+    "id_rsa",
+    "id_dsa",
+    "id_ecdsa",
+    "id_ed25519",
+  ]);
+  const MAX_FILE_BYTES = 1_500_000;
+  const MAX_FINDINGS = 200;
+
+  function isBinary(content: string): boolean {
+    const sample = content.length > 8192 ? content.slice(0, 8192) : content;
+    return sample.indexOf("\0") !== -1 || /[\x01-\x08\x0E-\x1F]/.test(sample);
+  }
+
+  function isSkippablePath(lower: string): boolean {
+    for (const tok of SKIP_PATH_TOKENS) {
+      if (lower.includes(tok)) return true;
+    }
+    if (lower.includes("/test/") || lower.includes("/tests/")) return true;
+    if (lower.includes("__tests__/") || lower.includes("__mocks__/")) return true;
+    if (lower.includes("__snapshots__/") || lower.includes("__fixtures__/"))
+      return true;
+    if (lower.includes("fixtures/") || lower.includes("snapshots/")) return true;
+    if (isTestFile(lower)) return true;
+    return false;
+  }
+
+  function lineAtOffset(lineOffsets: number[], index: number): number {
+    let lo = 0;
+    let hi = lineOffsets.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >>> 1;
+      if (lineOffsets[mid] <= index) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo + 1;
+  }
+
+  function buildLineOffsets(content: string): number[] {
+    const offsets = [0];
+    for (let i = 0; i < content.length; i++) {
+      if (content.charCodeAt(i) === 10) offsets.push(i + 1);
+    }
+    return offsets;
+  }
+
+  const priorityFiles: { file: RepoFile; priority: number }[] = [];
+  for (const file of ctx.repo.files) {
+    if (SKIP_FILES.has(file.path)) continue;
+    const lower = file.path.toLowerCase();
+    if (isSkippablePath(lower)) continue;
+    const base = file.path.split("/").pop() ?? file.path;
+    const isEnvLike = base.startsWith(".env") || SCAN_FILENAMES.has(base);
+    const hasKnownExt = SCAN_EXTENSIONS.some((ext) => lower.endsWith(ext));
+    if (!isEnvLike && !hasKnownExt) continue;
+    if (file.content.length > MAX_FILE_BYTES) continue;
+    if (isBinary(file.content)) continue;
+
+    let priority = 0;
+    if (base === ".env" || base === ".env.local") priority = 100;
+    else if (base.startsWith(".env")) priority = 90;
+    else if (SCAN_FILENAMES.has(base)) priority = 80;
+    else if (lower.endsWith(".json") || lower.endsWith(".yml") || lower.endsWith(".yaml"))
+      priority = 40;
+    else if (
+      lower.endsWith(".ts") ||
+      lower.endsWith(".tsx") ||
+      lower.endsWith(".js") ||
+      lower.endsWith(".jsx")
+    )
+      priority = 30;
+    else priority = 20;
+    priorityFiles.push({ file, priority });
+  }
+  priorityFiles.sort((a, b) => b.priority - a.priority);
+
+  const filesWithNeedles = priorityFiles.filter(({ file }) =>
+    fileContainsAnyNeedle(file.content),
+  );
+  const filesToScanForAll = priorityFiles;
 
   let totalMatches = 0;
   const perFile: Record<string, number> = {};
   const perPattern: Record<string, number> = {};
+  const NEEDLE_LESS = SECRET_PATTERNS.filter((p) => p.needles.length === 0);
+  const NEEDLE_BASED = SECRET_PATTERNS.filter((p) => p.needles.length > 0);
 
-  for (const file of ctx.repo.files) {
-    if (SKIP_FILES.has(file.path)) continue;
-    const lower = file.path.toLowerCase();
-    if (
-      !SCAN_EXTENSIONS.some((ext) => lower.endsWith(ext)) &&
-      !lower.includes(".env")
-    ) {
-      continue;
-    }
-    if (file.content.length > 1_500_000) continue;
+  const pushFinding = (
+    file: RepoFile,
+    pattern: (typeof SECRET_PATTERNS)[number],
+    match: RegExpExecArray,
+    offsets: number[],
+    lines: string[],
+    ext: string,
+  ): void => {
+    const matchedValue = match[1] ?? match[0];
+    if (isLikelyPlaceholder(matchedValue)) return;
+    const startIdx = match.index;
+    const line = lineAtOffset(offsets, startIdx);
+    const rawLine = lines[line - 1] ?? "";
+    if (isCommentedLine(rawLine, ext)) return;
+    ctx.findings.push(
+      makeFinding(
+        `secret-${pattern.name.replace(/\s+/g, "-").toLowerCase()}-${file.path}-${line}`,
+        `Possible ${pattern.name} found`,
+        `${pattern.description} This is a heuristic, not a guarantee \u2014 always confirm before rotating.`,
+        pattern.severity,
+        "secret",
+        `Move the value out of source: store it in a secret manager or environment variable, rotate the original value, and rewrite the file with a placeholder.`,
+        {
+          file: file.path,
+          line,
+          evidence: maskLine(rawLine).slice(0, 200),
+          fixPrompt: `Look at the file \`${file.path}\` around line ${line}. Replace the suspected secret with a placeholder and reference an environment variable instead.`,
+        },
+      ),
+    );
+    totalMatches++;
+    perFile[file.path] = (perFile[file.path] ?? 0) + 1;
+    perPattern[pattern.name] = (perPattern[pattern.name] ?? 0) + 1;
+  };
 
-    for (const pattern of SECRET_PATTERNS) {
+  const scanFileWithPatterns = (
+    file: RepoFile,
+    patterns: typeof SECRET_PATTERNS,
+  ): void => {
+    const offsets = buildLineOffsets(file.content);
+    const lines = file.content.split(/\r?\n/);
+    const ext = file.path.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? "default";
+    for (const pattern of patterns) {
       pattern.regex.lastIndex = 0;
       let match: RegExpExecArray | null;
       while ((match = pattern.regex.exec(file.content)) !== null) {
-        const matchedValue = match[1] ?? match[0];
-        if (isLikelyPlaceholder(matchedValue)) continue;
-
-        const startIdx = match.index;
-        const line = lineNumberOf(file.content, startIdx);
-        const rawLine = getLines(file.content)[line - 1] ?? "";
-        if (isCommentedLine(rawLine)) continue;
-
-        ctx.findings.push(
-          makeFinding(
-            `secret-${pattern.name.replace(/\s+/g, "-").toLowerCase()}-${file.path}-${line}`,
-            `Possible ${pattern.name} found`,
-            `${pattern.description} This is a heuristic, not a guarantee \u2014 always confirm before rotating.`,
-            pattern.severity,
-            "secret",
-            `Move the value out of source: store it in a secret manager or environment variable, rotate the original value, and rewrite the file with a placeholder.`,
-            {
-              file: file.path,
-              line,
-              evidence: maskLine(rawLine).slice(0, 200),
-              fixPrompt: `Look at the file \`${file.path}\` around line ${line}. Replace the suspected secret with a placeholder and reference an environment variable instead.`,
-            },
-          ),
-        );
-        totalMatches++;
-        perFile[file.path] = (perFile[file.path] ?? 0) + 1;
-        perPattern[pattern.name] = (perPattern[pattern.name] ?? 0) + 1;
-        if (ctx.findings.length > 200) {
+        pushFinding(file, pattern, match, offsets, lines, ext);
+        if (ctx.findings.length > MAX_FINDINGS) {
           addCheck(
             ctx,
             "secret-scan",
             "secret",
             "No secret patterns in source",
             "fail",
-            `Stopped after 200 matches. ${totalMatches} possible secret pattern(s) detected.`,
+            `Stopped after ${MAX_FINDINGS} matches. ${totalMatches} possible secret pattern(s) detected.`,
           );
           return;
         }
+      }
+    }
+  };
+
+  for (const { file } of filesWithNeedles) {
+    scanFileWithPatterns(file, NEEDLE_BASED);
+    if (ctx.findings.length > MAX_FINDINGS) {
+      return;
+    }
+  }
+
+  if (NEEDLE_LESS.length > 0) {
+    for (const { file } of filesToScanForAll) {
+      scanFileWithPatterns(file, NEEDLE_LESS);
+      if (ctx.findings.length > MAX_FINDINGS) {
+        return;
       }
     }
   }
@@ -1785,7 +1946,7 @@ function checkSecrets(ctx: ScanContext): void {
       "secret",
       "No secret patterns in source",
       "pass",
-      "No known secret patterns matched in the scanned source files.",
+      `No known secret patterns matched in ${priorityFiles.length} scanned file(s).`,
     );
   } else {
     const top = Object.entries(perPattern)
@@ -1799,7 +1960,7 @@ function checkSecrets(ctx: ScanContext): void {
       "secret",
       "No secret patterns in source",
       "fail",
-      `${totalMatches} possible secret pattern match(es) across ${Object.keys(perFile).length} file(s). Top: ${top}.`,
+      `${totalMatches} possible secret pattern match(es) across ${Object.keys(perFile).length} file(s) of ${priorityFiles.length} scanned. Top: ${top}.`,
     );
   }
 }

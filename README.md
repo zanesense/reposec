@@ -90,7 +90,7 @@ Why a defensive tool? Because catching mistakes early is cheaper, friendlier, an
 ## ✨ Features
 
 - 🔍 **12 static check modules** covering env hygiene, secrets, docs, scripts, GitHub features, container hygiene, community health, CI quality, repo metadata, source patterns, and dependencies.
-- 🧠 **14 secret patterns** out of the box: OpenAI, GitHub (classic + fine-grained), Slack, Stripe (live + test), Google API, AWS access keys, private key blocks, generic JWTs, database URLs, and generic credential assignments.
+- 🧠 **55+ secret patterns** out of the box, ported from the [gitleaks](https://github.com/gitleaks/gitleaks) ruleset: OpenAI, Anthropic (incl. admin), Groq, HuggingFace (user + org), Perplexity, Notion, GitHub (classic + fine-grained), GitLab, npm, PyPI, Slack (tokens + webhook URLs), Discord, Telegram, Twilio, SendGrid, Mailgun, Stripe (live + test), Google API, AWS (AKIA/ASIA + Bedrock ABSK + secret keys), Azure AD, Alibaba, Heroku, Pulumi, Fly.io, New Relic, Dynatrace, Grafana Cloud, Databricks, HashiCorp Vault (service + batch), Terraform Cloud, EasyPost, ReadMe, Prefect, Sourcegraph, Microsoft Teams webhooks, private key blocks, SSH public keys, generic JWTs, database URLs, curl auth in shell commands, and generic credential assignments.
 - 📊 **Security score (0–100)** with bands: _Excellent_, _Good_, _Fair_, _Weak_, _Critical_.
 - 🗂️ **Per-category breakdown** showing exactly which checks passed, failed, warned, or were missing.
 - 🧾 **Severity-grouped findings** with masked evidence and a "Fix it like this" panel.
@@ -583,7 +583,7 @@ Please open an issue first if your change is large or design-related.
 
 > **TODO:** A `CHANGELOG.md` is not yet committed. Notable milestones to seed it with:
 
-- **0.1.0** — Initial MVP. Landing page, 12 check modules, 14 secret patterns, score + band, exports (Markdown, JSON, `SECURITY.md`, `.env.example`, issue checklist, fix prompt), Playwright screenshot baseline.
+- **0.1.0** — Initial MVP. Landing page, 12 check modules, 55+ secret patterns (ported from the gitleaks ruleset), score + band, exports (Markdown, JSON, `SECURITY.md`, `.env.example`, issue checklist, fix prompt), Playwright screenshot baseline.
 
 ---
 
