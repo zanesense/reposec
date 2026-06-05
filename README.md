@@ -7,6 +7,7 @@ RepoSec is a defensive, read-only scanner that audits a public GitHub repository
 The scanner **never modifies** the target repository and **never exfiltrates** its data. It is a hygiene tool, not an offensive one.
 
 <p align="left">
+  <a href="https://reposec.zanesense.dev"><img alt="Live Demo" src="https://img.shields.io/badge/Live%20Demo-reposec.zanesense.dev-22c55e?style=for-the-badge&logo=vercel&logoColor=white" /></a>
   <a href="https://github.com/zanesense/reposec/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge" /></a>
   <a href="https://github.com/zanesense/reposec"><img alt="Version" src="https://img.shields.io/badge/version-0.1.0-6366f1?style=for-the-badge" /></a>
   <a href="https://github.com/zanesense/reposec/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/zanesense/reposec?style=for-the-badge&color=facc15" /></a>
@@ -17,6 +18,57 @@ The scanner **never modifies** the target repository and **never exfiltrates** i
   <img alt="React" src="https://img.shields.io/badge/React-19-149eca?style=for-the-badge&logo=react&logoColor=white" />
   <img alt="Last commit" src="https://img.shields.io/github/last-commit/zanesense/reposec?style=for-the-badge" />
 </p>
+
+> 🚀 **[Try the live demo →](https://reposec.zanesense.dev)** — paste any public GitHub URL and get a security report in seconds. No signup, no token required.
+
+---
+
+## 🧭 Quick Links
+
+| Link | Description |
+| --- | --- |
+| 🌐 [Live demo](https://reposec.zanesense.dev) | Hosted scanner at `reposec.zanesense.dev` |
+| 📦 [Repository](https://github.com/zanesense/reposec) | Source code, issues, and releases |
+| 🐛 [Issue tracker](https://github.com/zanesense/reposec/issues) | Report bugs and request features |
+| 🔀 [Pull requests](https://github.com/zanesense/reposec/pulls) | Open a PR to contribute |
+| ⭐ [Stargazers](https://github.com/zanesense/reposec/stargazers) | See who starred the project |
+| 📄 [License](https://github.com/zanesense/reposec/blob/main/LICENSE) | MIT terms |
+
+---
+
+## 🗂️ Table of Contents
+
+- [📖 Overview](#-overview)
+- [✨ Features](#-features)
+- [🧠 How It Works](#-how-it-works)
+- [📂 Repository Structure](#-repository-structure)
+- [🧰 Technologies](#-technologies)
+- [📋 Requirements](#-requirements)
+- [🛠️ Installation](#️-installation)
+  - [Production build](#production-build)
+- [⚙️ Configuration](#️-configuration)
+- [🛠️ Usage](#️-usage)
+  - [Web UI](#web-ui)
+  - [Programmatic API](#programmatic-api)
+  - [Screenshots](#screenshots)
+- [🧪 Testing](#-testing)
+- [🔄 Project Flow](#-project-flow)
+- [🔌 API Reference](#-api-reference)
+  - [`POST /api/scan`](#post-apiscan)
+- [💡 Examples](#-examples)
+  - [Try these public repositories](#try-these-public-repositories)
+  - [What a finding looks like](#what-a-finding-looks-like)
+- [🚀 Deployment](#-deployment)
+  - [Vercel (recommended)](#vercel-recommended)
+  - [Docker](#docker)
+  - [Self-hosted Node](#self-hosted-node)
+- [🗺️ Roadmap](#️-roadmap)
+- [🤝 Contributing](#-contributing)
+- [📝 Changelog](#-changelog)
+- [🛟 Troubleshooting](#-troubleshooting)
+- [🔐 Security](#-security)
+- [📄 License](#-license)
+- [❤️ Acknowledgements](#️-acknowledgements)
 
 ---
 
@@ -583,3 +635,17 @@ MIT.
 - 🤖 Build tooling by [Next.js](https://nextjs.org/), [React](https://react.dev/), [Tailwind CSS](https://tailwindcss.com/), and [TypeScript](https://www.typescriptlang.org/).
 - 🧪 Visual baseline by [Playwright](https://playwright.dev/).
 - 💛 Thanks to every maintainer who takes repo hygiene seriously.
+
+---
+
+<p align="center">
+  <a href="#reposec">⬆️ Back to top</a>
+  &nbsp;·&nbsp;
+  <a href="https://reposec.zanesense.dev">🌐 Live demo</a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/zanesense/reposec">📦 Repository</a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/zanesense/reposec/issues">🐛 Report a bug</a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/zanesense/reposec/blob/main/LICENSE">📄 MIT License</a>
+</p>
