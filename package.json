@@ -29,7 +29,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "npm run test:scanner",
     "lint": "eslint",
+    "audit": "npm audit --omit=dev",
     "typecheck": "tsc --noEmit",
     "clean": "node -e \"const fs=require('fs');for (const p of ['.next','tsconfig.tsbuildinfo']) { try { fs.rmSync(p,{recursive:true,force:true}); } catch {} } console.log('cleaned')\"",
     "screenshots": "node scripts/capture-screenshots.mjs",
@@ -61,6 +63,7 @@
     "typescript": "^5"
   },
   "overrides": {
-    "csstype": "3.2.2"
+    "csstype": "3.2.2",
+    "postcss": "8.5.15"
   }
 }

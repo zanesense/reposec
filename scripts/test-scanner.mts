@@ -310,6 +310,48 @@ console.log("\n--- Code pattern: real eval() call SHOULD trigger ---");
   assert("code-eval finding for real eval()", codeEval.length > 0, `found ${codeEval.length}`);
 }
 
+console.log("\n--- Code pattern: dangerouslySetInnerHTML in regex literal should NOT trigger ---");
+{
+  const repo = makeRepo({
+    files: [
+      {
+        path: "src/scanner.ts",
+        content: "const match = /dangerouslySetInnerHTML/.exec(line);\n",
+      },
+    ],
+  });
+  const result = runScan(repo);
+  const codeDangerousHtml = result.findings.filter((f) =>
+    f.id.startsWith("code-dangerously-set"),
+  );
+  assert(
+    "no code-dangerously-set finding for regex literal",
+    codeDangerousHtml.length === 0,
+    `found ${codeDangerousHtml.length}`,
+  );
+}
+
+console.log("\n--- Code pattern: real dangerouslySetInnerHTML SHOULD trigger ---");
+{
+  const repo = makeRepo({
+    files: [
+      {
+        path: "src/render.tsx",
+        content: "export function View({ html }: { html: string }) { return <div dangerouslySetInnerHTML={{ __html: html }} />; }\n",
+      },
+    ],
+  });
+  const result = runScan(repo);
+  const codeDangerousHtml = result.findings.filter((f) =>
+    f.id.startsWith("code-dangerously-set"),
+  );
+  assert(
+    "code-dangerously-set finding for real JSX usage",
+    codeDangerousHtml.length > 0,
+    `found ${codeDangerousHtml.length}`,
+  );
+}
+
 console.log("\n--- CI: cargo test should be detected ---");
 {
   const repo = makeRepo({

@@ -144,6 +144,12 @@ function isInsideString(line: string, matchIndex: number): boolean {
   return singleQuotes % 2 === 1 || doubleQuotes % 2 === 1 || backticks % 2 === 1;
 }
 
+function isInsideRegexLiteral(line: string, matchIndex: number): boolean {
+  const before = line.slice(0, matchIndex);
+  const after = line.slice(matchIndex);
+  return /\/[^/\n\\]*(?:\\.[^/\n\\]*)*$/.test(before) && /^[^/\n\\]*(?:\\.[^/\n\\]*)*\//.test(after);
+}
+
 function isTestFile(path: string): boolean {
   return (
     /\.(test|spec)\.[cm]?[jt]sx?$/.test(path) ||
@@ -1557,7 +1563,7 @@ function checkCodePatterns(ctx: ScanContext): void {
 
       const dsrMatch = /dangerouslySetInnerHTML/.exec(line);
       if (dsrMatch) {
-        if (!isInsideString(line, dsrMatch.index)) {
+        if (!isInsideString(line, dsrMatch.index) && !isInsideRegexLiteral(line, dsrMatch.index)) {
           addFindingAndCheck(
             ctx,
             {
