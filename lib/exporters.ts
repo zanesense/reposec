@@ -38,7 +38,10 @@ function findingLine(f: Finding): string {
       ? `\`${f.file}:${f.line}\``
       : `\`${f.file}\``
     : "_general_";
-  return `- **${f.title}** (${severityLabel(f.severity)}) \u2014 ${loc}\n  - _Why:_ ${f.description}\n  - _Fix:_ ${f.fix}`;
+  const confidence = f.confidence
+    ? `, ${f.verified ? "verified" : `${f.confidence} confidence`}`
+    : "";
+  return `- **${f.title}** (${severityLabel(f.severity)}${confidence}) \u2014 ${loc}\n  - _Why:_ ${f.description}\n  - _Fix:_ ${f.fix}`;
 }
 
 function categoryLabel(c: FindingCategory): string {
@@ -243,6 +246,87 @@ export function generateJsonReport(report: ScanReport): string {
   return JSON.stringify(report, null, 2);
 }
 
+function sarifLevel(severity: Severity): "error" | "warning" | "note" {
+  if (severity === "critical" || severity === "high") return "error";
+  if (severity === "medium" || severity === "low") return "warning";
+  return "note";
+}
+
+function sarifRuleId(finding: Finding): string {
+  const base = finding.id.split("-").slice(0, 3).join("-");
+  return base || finding.category;
+}
+
+export function generateSarifReport(report: ScanReport): string {
+  const rules = new Map<string, Finding>();
+  for (const finding of report.findings) {
+    const id = sarifRuleId(finding);
+    if (!rules.has(id)) rules.set(id, finding);
+  }
+
+  return JSON.stringify(
+    {
+      version: "2.1.0",
+      $schema:
+        "https://json.schemastore.org/sarif-2.1.0.json",
+      runs: [
+        {
+          tool: {
+            driver: {
+              name: "RepoSec",
+              informationUri: "https://github.com/zanesense/reposec",
+              rules: Array.from(rules.entries()).map(([id, finding]) => ({
+                id,
+                name: finding.title,
+                shortDescription: { text: finding.title },
+                fullDescription: { text: finding.description },
+                help: { text: finding.fix },
+                properties: {
+                  category: finding.category,
+                  severity: finding.severity,
+                  confidence: finding.confidence ?? "medium",
+                },
+              })),
+            },
+          },
+          results: report.findings.map((finding) => ({
+            ruleId: sarifRuleId(finding),
+            level: sarifLevel(finding.severity),
+            message: {
+              text: `${finding.title}: ${finding.description}`,
+            },
+            locations: finding.file
+              ? [
+                  {
+                    physicalLocation: {
+                      artifactLocation: { uri: finding.file },
+                      region: finding.line
+                        ? { startLine: finding.line }
+                        : undefined,
+                    },
+                  },
+                ]
+              : [],
+            fingerprints: finding.fingerprint
+              ? { secretFingerprint: finding.fingerprint }
+              : undefined,
+            properties: {
+              category: finding.category,
+              severity: finding.severity,
+              confidence: finding.confidence ?? "medium",
+              verified: finding.verified ?? false,
+              evidence: finding.evidence,
+              remediation: finding.fix,
+            },
+          })),
+        },
+      ],
+    },
+    null,
+    2,
+  );
+}
+
 export function generateSecurityMdTemplate(): string {
   return `# Security Policy
 
@@ -375,7 +459,8 @@ export function buildDownload(
     | "env-example"
     | "issue"
     | "fix-prompt"
-    | "json",
+    | "json"
+    | "sarif",
 ): DownloadPayload {
   switch (kind) {
     case "report":
@@ -413,6 +498,12 @@ export function buildDownload(
         filename: `reposec-${report.repo.owner}-${report.repo.repo}.json`,
         mime: "application/json",
         content: generateJsonReport(report),
+      };
+    case "sarif":
+      return {
+        filename: `reposec-${report.repo.owner}-${report.repo.repo}.sarif`,
+        mime: "application/sarif+json",
+        content: generateSarifReport(report),
       };
   }
 }

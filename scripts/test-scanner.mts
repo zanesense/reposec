@@ -1,4 +1,6 @@
 import { runScan } from "../lib/scanner.ts";
+import { isLikelySecretScanPath } from "../lib/scan-targets.ts";
+import { generateSarifReport } from "../lib/exporters.ts";
 import type { RepoData } from "../lib/types.ts";
 
 function makeRepo(partial: Partial<RepoData> & { files: RepoData["files"] }): RepoData {
@@ -370,6 +372,64 @@ console.log("\n--- Metadata: 4-char description should pass ---");
     descCheck?.status === "pass",
     `actual: ${descCheck?.status}`,
   );
+}
+
+console.log("\n--- Secret scan target selection ---");
+{
+  assert("JavaScript source is selected", isLikelySecretScanPath("src/config.js", 1200));
+  assert("Python source is selected", isLikelySecretScanPath("app/settings.py", 1200));
+  assert("env examples are selected", isLikelySecretScanPath(".env.example", 1200));
+  assert("nested env files are selected", isLikelySecretScanPath("services/api/.env.local", 1200));
+  assert("node_modules are skipped", !isLikelySecretScanPath("node_modules/pkg/index.js", 1200));
+  assert("large blobs are skipped", !isLikelySecretScanPath("src/huge.py", 2_000_000));
+}
+
+console.log("\n--- Baseline suppression ---");
+{
+  const repo = makeRepo({
+    files: [
+      {
+        path: "src/config.py",
+        content: 'api_key = "realisticSecretValue123456"\n',
+      },
+      { path: ".reposecignore", content: "src/config.py:1\n" },
+    ],
+  });
+  const result = runScan(repo);
+  const secretFindings = result.findings.filter((f) => f.id.startsWith("secret-"));
+  assert("baseline suppresses matching finding", secretFindings.length === 0);
+  assert(
+    "baseline check is recorded",
+    result.summary.checks.some((c) => c.id === "baseline-suppression"),
+  );
+}
+
+console.log("\n--- SARIF export ---");
+{
+  const repo = makeRepo({
+    files: [
+      {
+        path: "src/config.py",
+        content: 'api_key = "realisticSecretValue123456"\n',
+      },
+    ],
+  });
+  const result = runScan(repo);
+  const sarif = JSON.parse(
+    generateSarifReport({
+      repo: repo.metadata,
+      score: 75,
+      scoreBand: "good",
+      summary: result.summary,
+      findings: result.findings,
+      filesChecked: result.filesChecked,
+      fileGroups: result.fileGroups,
+      scannedAt: new Date().toISOString(),
+      durationMs: 1,
+    }),
+  );
+  assert("SARIF version is 2.1.0", sarif.version === "2.1.0");
+  assert("SARIF contains results", sarif.runs[0].results.length > 0);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -1,4 +1,10 @@
 import { maskSecret } from "./utils";
+import { fingerprintSecret } from "./fingerprint";
+import { applyRepoBaseline } from "./baseline";
+import {
+  isLikelySecretScanPath,
+  secretScanPriority,
+} from "./scan-targets";
 import type {
   CategoryBreakdown,
   CheckResult,
@@ -6,6 +12,7 @@ import type {
   FileGroup,
   Finding,
   FindingCategory,
+  FindingConfidence,
   RepoData,
   RepoFile,
   ScanSummary,
@@ -26,6 +33,14 @@ interface ScanContext {
   checks: CheckResult[];
   filesChecked: Set<string>;
   filesMissing: string[];
+  secretCandidates: SecretCandidate[];
+  collectSecretCandidates: boolean;
+}
+
+export interface SecretCandidate {
+  findingId: string;
+  patternName: string;
+  value: string;
 }
 
 function findFile(files: RepoFile[], path: string): RepoFile | undefined {
@@ -54,6 +69,21 @@ function makeFinding(
     fix,
     ...extras,
   };
+}
+
+function confidenceForSecretPattern(name: string): FindingConfidence {
+  const lower = name.toLowerCase();
+  if (lower.includes("informational") || lower.includes("public key")) {
+    return "low";
+  }
+  if (
+    lower.includes("generic") ||
+    lower.includes("terraform variable") ||
+    lower.includes("jwt secret assignment")
+  ) {
+    return "medium";
+  }
+  return "high";
 }
 
 function addCheck(
@@ -1682,123 +1712,11 @@ function checkDependencies(ctx: ScanContext): void {
 }
 
 function checkSecrets(ctx: ScanContext): void {
-  const SKIP_FILES = new Set([
-    ".env.example",
-    "package-lock.json",
-    "yarn.lock",
-    "pnpm-lock.yaml",
-    "bun.lockb",
-    "composer.lock",
-    "Gemfile.lock",
-    "Cargo.lock",
-    "poetry.lock",
-    "Pipfile.lock",
-    "LICENSE",
-    "SECURITY.md",
-    "README.md",
-    "CHANGELOG.md",
-    "CODEOWNERS",
-  ]);
-  const SKIP_PATH_TOKENS = [
-    "node_modules/",
-    "vendor/",
-    "dist/",
-    "build/",
-    ".next/",
-    "out/",
-    "coverage/",
-    "target/",
-    "bower_components/",
-    "jspm_packages/",
-    ".gradle/",
-    "Pods/",
-    ".terraform/",
-    ".venv/",
-    "venv/",
-    "__pycache__/",
-    ".git/",
-  ];
-  const SCAN_EXTENSIONS = [
-    ".ts",
-    ".tsx",
-    ".js",
-    ".jsx",
-    ".mjs",
-    ".cjs",
-    ".json",
-    ".yml",
-    ".yaml",
-    ".env",
-    ".py",
-    ".rb",
-    ".go",
-    ".java",
-    ".kt",
-    ".swift",
-    ".php",
-    ".sh",
-    ".toml",
-    ".ini",
-    ".cfg",
-    ".conf",
-    ".config",
-    ".pem",
-    ".key",
-    ".crt",
-    ".npmrc",
-    ".pypirc",
-    ".netrc",
-    ".tf",
-    ".tfvars",
-    ".bash",
-    ".zsh",
-    ".fish",
-    ".ps1",
-    ".dart",
-    ".lua",
-    ".rs",
-    ".scala",
-    ".clj",
-    ".ex",
-    ".exs",
-    ".xml",
-    ".properties",
-    ".htaccess",
-  ];
-  const SCAN_FILENAMES = new Set([
-    ".env",
-    ".env.local",
-    ".env.development",
-    ".env.production",
-    ".env.test",
-    ".npmrc",
-    ".pypirc",
-    ".netrc",
-    ".htpasswd",
-    "id_rsa",
-    "id_dsa",
-    "id_ecdsa",
-    "id_ed25519",
-  ]);
-  const MAX_FILE_BYTES = 1_500_000;
   const MAX_FINDINGS = 200;
 
   function isBinary(content: string): boolean {
     const sample = content.length > 8192 ? content.slice(0, 8192) : content;
     return sample.indexOf("\0") !== -1 || /[\x01-\x08\x0E-\x1F]/.test(sample);
-  }
-
-  function isSkippablePath(lower: string): boolean {
-    for (const tok of SKIP_PATH_TOKENS) {
-      if (lower.includes(tok)) return true;
-    }
-    if (lower.includes("/test/") || lower.includes("/tests/")) return true;
-    if (lower.includes("__tests__/") || lower.includes("__mocks__/")) return true;
-    if (lower.includes("__snapshots__/") || lower.includes("__fixtures__/"))
-      return true;
-    if (lower.includes("fixtures/") || lower.includes("snapshots/")) return true;
-    if (isTestFile(lower)) return true;
-    return false;
   }
 
   function lineAtOffset(lineOffsets: number[], index: number): number {
@@ -1822,33 +1740,16 @@ function checkSecrets(ctx: ScanContext): void {
 
   const priorityFiles: { file: RepoFile; priority: number }[] = [];
   for (const file of ctx.repo.files) {
-    if (SKIP_FILES.has(file.path)) continue;
-    const lower = file.path.toLowerCase();
-    if (isSkippablePath(lower)) continue;
-    const base = file.path.split("/").pop() ?? file.path;
-    const isEnvLike = base.startsWith(".env") || SCAN_FILENAMES.has(base);
-    const hasKnownExt = SCAN_EXTENSIONS.some((ext) => lower.endsWith(ext));
-    if (!isEnvLike && !hasKnownExt) continue;
-    if (file.content.length > MAX_FILE_BYTES) continue;
+    if (!isLikelySecretScanPath(file.path, file.content.length)) continue;
+    if (isTestFile(file.path.toLowerCase())) continue;
     if (isBinary(file.content)) continue;
 
-    let priority = 0;
-    if (base === ".env" || base === ".env.local") priority = 100;
-    else if (base.startsWith(".env")) priority = 90;
-    else if (SCAN_FILENAMES.has(base)) priority = 80;
-    else if (lower.endsWith(".json") || lower.endsWith(".yml") || lower.endsWith(".yaml"))
-      priority = 40;
-    else if (
-      lower.endsWith(".ts") ||
-      lower.endsWith(".tsx") ||
-      lower.endsWith(".js") ||
-      lower.endsWith(".jsx")
-    )
-      priority = 30;
-    else priority = 20;
-    priorityFiles.push({ file, priority });
+    priorityFiles.push({ file, priority: secretScanPriority(file.path) });
   }
   priorityFiles.sort((a, b) => b.priority - a.priority);
+  for (const { file } of priorityFiles) {
+    ctx.filesChecked.add(file.path);
+  }
 
   const filesWithNeedles = priorityFiles.filter(({ file }) =>
     fileContainsAnyNeedle(file.content),
@@ -1887,10 +1788,20 @@ function checkSecrets(ctx: ScanContext): void {
           file: file.path,
           line,
           evidence: maskLine(rawLine).slice(0, 200),
+          confidence: confidenceForSecretPattern(pattern.name),
+          fingerprint: fingerprintSecret(matchedValue),
           fixPrompt: `Look at the file \`${file.path}\` around line ${line}. Replace the suspected secret with a placeholder and reference an environment variable instead.`,
         },
       ),
     );
+    const finding = ctx.findings.at(-1);
+    if (ctx.collectSecretCandidates && finding) {
+      ctx.secretCandidates.push({
+        findingId: finding.id,
+        patternName: pattern.name,
+        value: matchedValue,
+      });
+    }
     totalMatches++;
     perFile[file.path] = (perFile[file.path] ?? 0) + 1;
     perPattern[pattern.name] = (perPattern[pattern.name] ?? 0) + 1;
@@ -1915,7 +1826,7 @@ function checkSecrets(ctx: ScanContext): void {
             "secret",
             "No secret patterns in source",
             "fail",
-            `Stopped after ${MAX_FINDINGS} matches. ${totalMatches} possible secret pattern(s) detected.`,
+            `Stopped after ${MAX_FINDINGS} matches. ${totalMatches} possible secret pattern(s) detected in ${priorityFiles.length} scanned file(s).`,
           );
           return;
         }
@@ -2045,15 +1956,21 @@ export interface ScanResult {
   summary: ScanSummary;
   filesChecked: string[];
   fileGroups: FileGroup[];
+  secretCandidates?: SecretCandidate[];
 }
 
-export function runScan(repo: RepoData): ScanResult {
+export function runScan(
+  repo: RepoData,
+  options: { collectSecretCandidates?: boolean } = {},
+): ScanResult {
   const ctx: ScanContext = {
     repo,
     findings: [],
     checks: [],
     filesChecked: new Set(),
     filesMissing: [],
+    secretCandidates: [],
+    collectSecretCandidates: options.collectSecretCandidates ?? false,
   };
 
   checkEnvironment(ctx);
@@ -2069,6 +1986,19 @@ export function runScan(repo: RepoData): ScanResult {
   checkDependencies(ctx);
   checkSecrets(ctx);
 
+  const baseline = applyRepoBaseline(ctx.findings, ctx.repo.files);
+  if (baseline.suppressed > 0) {
+    ctx.findings = baseline.findings;
+    addCheck(
+      ctx,
+      "baseline-suppression",
+      "secret",
+      "RepoSec baseline applied",
+      "info",
+      `${baseline.suppressed} reviewed finding(s) suppressed by .reposecignore or reposec-baseline.json.`,
+    );
+  }
+
   const summary = buildSummary(ctx);
   const fileGroups = groupFindingsByFile(ctx.findings);
   return {
@@ -2076,6 +2006,9 @@ export function runScan(repo: RepoData): ScanResult {
     summary,
     filesChecked: Array.from(ctx.filesChecked).sort(),
     fileGroups,
+    secretCandidates: options.collectSecretCandidates
+      ? ctx.secretCandidates
+      : undefined,
   };
 }
 

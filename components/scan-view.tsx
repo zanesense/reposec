@@ -32,6 +32,7 @@ const STAGES = [
   "Fetching repository metadata",
   "Reading the file tree",
   "Pulling important files",
+  "Checking deployed JavaScript bundles",
   "Running rule-based checks",
   "Scanning for secret patterns",
   "Scoring and grouping findings",
@@ -41,12 +42,16 @@ export function ScanView() {
   const params = useSearchParams();
   const ownerParam = params.get("owner") ?? "";
   const repoParam = params.get("repo") ?? "";
+  const siteParam = params.get("site") ?? "";
+  const verifyParam = params.get("verify") === "1";
   const initialUrl =
     ownerParam && repoParam
       ? `https://github.com/${ownerParam}/${repoParam}`
       : "";
 
   const [url] = React.useState(initialUrl);
+  const [siteUrl] = React.useState(siteParam);
+  const [verifySecrets] = React.useState(verifyParam);
   const [status, setStatus] = React.useState<Status>(
     initialUrl ? "scanning" : "idle",
   );
@@ -87,7 +92,11 @@ export function ScanView() {
       const res = await fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: target }),
+        body: JSON.stringify({
+          url: target,
+          siteUrl: siteUrl || undefined,
+          verify: verifySecrets || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {

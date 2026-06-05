@@ -1,4 +1,5 @@
 export type Severity = "critical" | "high" | "medium" | "low" | "info";
+export type FindingConfidence = "verified" | "high" | "medium" | "low";
 
 export type FindingCategory =
   | "environment"
@@ -19,6 +20,9 @@ export interface Finding {
   description: string;
   severity: Severity;
   category: FindingCategory;
+  confidence?: FindingConfidence;
+  fingerprint?: string;
+  verified?: boolean;
   file?: string;
   line?: number;
   evidence?: string;
@@ -41,6 +45,7 @@ export interface RepoMetadata {
   openIssues?: number;
   isPrivate: boolean;
   htmlUrl: string;
+  homepageUrl?: string | null;
   topics?: string[];
   archived?: boolean;
   isTemplate?: boolean;

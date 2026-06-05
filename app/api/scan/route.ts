@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { GitHubError, fetchRepoData, parseRepoUrl } from "@/lib/github";
 import { runScan } from "@/lib/scanner";
 import { calculateScore, scoreBand } from "@/lib/scoring";
+import { fetchClientBundleFiles } from "@/lib/client-bundle";
+import { verifyFindings } from "@/lib/verification";
 import type { ScanReport } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -9,6 +11,8 @@ export const dynamic = "force-dynamic";
 
 interface RequestBody {
   url?: string;
+  siteUrl?: string;
+  verify?: boolean;
 }
 
 export async function POST(req: Request) {
@@ -36,7 +40,18 @@ export async function POST(req: Request) {
   const started = Date.now();
   try {
     const repo = await fetchRepoData(parsed.owner, parsed.repo);
-    const result = runScan(repo);
+    const clientBundleFiles = await fetchClientBundleFiles(
+      body.siteUrl ?? repo.metadata.homepageUrl,
+    );
+    if (clientBundleFiles.length > 0) {
+      repo.files = [...repo.files, ...clientBundleFiles];
+      repo.fileTree = [...repo.fileTree, ...clientBundleFiles.map((f) => f.path)];
+    }
+    const shouldVerify = body.verify === true;
+    const result = runScan(repo, { collectSecretCandidates: shouldVerify });
+    if (shouldVerify) {
+      await verifyFindings(result.findings, result.secretCandidates);
+    }
     const score = calculateScore(result.findings);
     const report: ScanReport = {
       repo: repo.metadata,

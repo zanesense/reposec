@@ -21,6 +21,11 @@ export function FindingCard({ finding }: { finding: Finding }) {
               <span className="rounded-full border-[2px] border-ink bg-secondary px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ink">
                 {finding.category}
               </span>
+              {finding.confidence && (
+                <span className="rounded-full border-[2px] border-ink bg-card px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ink">
+                  {finding.verified ? "verified" : `${finding.confidence} confidence`}
+                </span>
+              )}
             </div>
             <h3 className="font-display text-2xl font-bold leading-tight">
               {finding.title}

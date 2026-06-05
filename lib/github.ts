@@ -4,6 +4,7 @@ import type {
   RepoFile,
   RepoMetadata,
 } from "./types";
+import { isLikelySecretScanPath, secretScanPriority } from "./scan-targets";
 
 const GITHUB_API = "https://api.github.com";
 const RAW_BASE = "https://raw.githubusercontent.com";
@@ -17,6 +18,9 @@ const IMPORTANT_PATHS = [
   ".env.production",
   ".env.development",
   ".env.example",
+  ".reposecignore",
+  "reposec-baseline.json",
+  ".reposec-baseline.json",
   "SECURITY.md",
   "LICENSE",
   "Dockerfile",
@@ -146,7 +150,8 @@ async function fetchRawFile(
   ref: string,
   path: string,
 ): Promise<string | null> {
-  const url = `${RAW_BASE}/${owner}/${repo}/${ref}/${path}`;
+  const encodedPath = path.split("/").map(encodeURIComponent).join("/");
+  const url = `${RAW_BASE}/${owner}/${repo}/${ref}/${encodedPath}`;
   try {
     const res = await fetch(url, {
       headers: { "User-Agent": "RepoSec-Scanner" },
@@ -164,6 +169,29 @@ async function fetchRawFile(
   }
 }
 
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  mapper: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+
+  async function worker(): Promise<void> {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await mapper(items[index]);
+    }
+  }
+
+  const workers = Array.from(
+    { length: Math.min(limit, items.length) },
+    () => worker(),
+  );
+  await Promise.all(workers);
+  return results;
+}
+
 interface GithubRepoResponse {
   name: string;
   full_name: string;
@@ -171,6 +199,7 @@ interface GithubRepoResponse {
   default_branch: string;
   private: boolean;
   html_url: string;
+  homepage?: string | null;
   stargazers_count: number;
   forks_count: number;
   open_issues_count?: number;
@@ -221,24 +250,32 @@ export async function fetchRepoData(
     `/repos/${owner}/${repo}/git/trees/${ref}?recursive=1`,
   );
 
-  const fileTree = tree.tree
-    .filter((entry) => entry.type === "blob")
-    .map((entry) => entry.path);
+  const blobEntries = tree.tree.filter((entry) => entry.type === "blob");
+  const fileTree = blobEntries.map((entry) => entry.path);
 
   const candidates = new Set<string>(IMPORTANT_PATHS);
-  for (const path of fileTree) {
+  for (const entry of blobEntries) {
+    const path = entry.path;
     if (path.startsWith(`${WORKFLOW_DIR}/`)) candidates.add(path);
     if (path.startsWith(`${ISSUE_TEMPLATE_DIR}/`)) candidates.add(path);
     for (const dep of DEPENDABOT_PATHS) {
       if (path === dep) candidates.add(path);
     }
+    if (isLikelySecretScanPath(path, entry.size)) candidates.add(path);
   }
 
-  const fetched = await Promise.all(
-    Array.from(candidates).map(async (path) => {
+  const candidatePaths = Array.from(candidates).sort((a, b) => {
+    const priorityDelta = secretScanPriority(b) - secretScanPriority(a);
+    return priorityDelta || a.localeCompare(b);
+  });
+
+  const fetched = await mapWithConcurrency(
+    candidatePaths,
+    16,
+    async (path) => {
       const content = await fetchRawFile(owner, repo, ref, path);
       return { path, content };
-    }),
+    },
   );
 
   const files: RepoFile[] = fetched
@@ -294,6 +331,7 @@ export async function fetchRepoData(
     openIssues: meta.open_issues_count,
     isPrivate: meta.private,
     htmlUrl: meta.html_url,
+    homepageUrl: meta.homepage?.trim() || null,
     topics: meta.topics ?? [],
     archived: meta.archived ?? false,
     isTemplate: meta.is_template ?? false,

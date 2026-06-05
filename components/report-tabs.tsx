@@ -35,6 +35,7 @@ import {
   generateIssueChecklist,
   generateJsonReport,
   generateMarkdownReport,
+  generateSarifReport,
   generateSecurityMdTemplate,
 } from "@/lib/exporters";
 
@@ -143,6 +144,14 @@ export function ReportTabs({ report }: { report: ScanReport }) {
         content: generateJsonReport(report),
         filename: `reposec-${report.repo.owner}-${report.repo.repo}.json`,
         mime: "application/json",
+      },
+      {
+        id: "sarif",
+        label: "SARIF report",
+        description: "GitHub Code Scanning compatible findings export.",
+        content: generateSarifReport(report),
+        filename: `reposec-${report.repo.owner}-${report.repo.repo}.sarif`,
+        mime: "application/sarif+json",
       },
       {
         id: "security-md",

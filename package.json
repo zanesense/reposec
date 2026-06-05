@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "clean": "node -e \"const fs=require('fs');for (const p of ['.next','tsconfig.tsbuildinfo']) { try { fs.rmSync(p,{recursive:true,force:true}); } catch {} } console.log('cleaned')\"",
     "screenshots": "node scripts/capture-screenshots.mjs",
-    "test:scanner": "tsx scripts/test-scanner.mts"
+    "test:scanner": "tsx scripts/test-scanner.mts && tsx scripts/test-client-bundle.mts",
+    "scan:local": "tsx scripts/reposec-cli.mts"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",

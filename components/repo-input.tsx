@@ -24,19 +24,29 @@ const SAMPLE_REPOS = [
 export function RepoInput({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const [value, setValue] = React.useState("");
+  const [siteUrl, setSiteUrl] = React.useState("");
+  const [verifySecrets, setVerifySecrets] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [starPromptOpen, setStarPromptOpen] = React.useState(false);
   const pendingParsedRef = React.useRef<ParsedRepoUrl | null>(null);
+  const pendingSiteUrlRef = React.useRef("");
+  const pendingVerifyRef = React.useRef(false);
 
   const parsedPreview = React.useMemo(() => parseRepoUrl(value), [value]);
 
-  function startScan(parsed: ParsedRepoUrl) {
+  function startScan(
+    parsed: ParsedRepoUrl,
+    deployedUrl = siteUrl,
+    verify = verifySecrets,
+  ) {
     setLoading(true);
     const params = new URLSearchParams({
       owner: parsed.owner,
       repo: parsed.repo,
     });
+    if (deployedUrl.trim()) params.set("site", deployedUrl.trim());
+    if (verify) params.set("verify", "1");
     router.push(`/scan?${params.toString()}`);
   }
 
@@ -44,8 +54,12 @@ export function RepoInput({ compact = false }: { compact?: boolean }) {
     setStarPromptOpen(open);
     if (!open) {
       const pending = pendingParsedRef.current;
+      const pendingSiteUrl = pendingSiteUrlRef.current;
+      const pendingVerify = pendingVerifyRef.current;
       pendingParsedRef.current = null;
-      if (pending) startScan(pending);
+      pendingSiteUrlRef.current = "";
+      pendingVerifyRef.current = false;
+      if (pending) startScan(pending, pendingSiteUrl, pendingVerify);
     }
   }
 
@@ -59,8 +73,27 @@ export function RepoInput({ compact = false }: { compact?: boolean }) {
       );
       return;
     }
+    if (siteUrl.trim()) {
+      try {
+        const trimmedSite = siteUrl.trim();
+        const parsedSite = new URL(
+          /^[a-z][a-z0-9+.-]*:/i.test(trimmedSite)
+            ? trimmedSite
+            : `https://${trimmedSite}`,
+        );
+        if (parsedSite.protocol !== "https:") {
+          setError("Use an https:// URL for deployed bundle scanning.");
+          return;
+        }
+      } catch {
+        setError("That deployed app URL is not valid.");
+        return;
+      }
+    }
     if (!isStarPromptSeen()) {
       pendingParsedRef.current = parsed;
+      pendingSiteUrlRef.current = siteUrl.trim();
+      pendingVerifyRef.current = verifySecrets;
       setStarPromptOpen(true);
       return;
     }
@@ -132,6 +165,44 @@ export function RepoInput({ compact = false }: { compact?: boolean }) {
               )}
             </Button>
           </div>
+          <div className="border-t-[2px] border-dashed border-ink/30 px-3 py-2">
+            <label
+              htmlFor="site-url"
+              className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
+            >
+              Deployed app URL
+            </label>
+            <Input
+              id="site-url"
+              name="site-url"
+              inputMode="url"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="https://your-app.example.com"
+              value={siteUrl}
+              onChange={(e) => {
+                setSiteUrl(e.target.value);
+                if (error) setError(null);
+              }}
+              disabled={loading}
+              className="mt-1 h-10 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:shadow-none focus-visible:ring-0"
+            />
+          </div>
+          <label className="flex cursor-pointer items-start gap-2 px-3 pb-2 text-left text-xs text-ink/80">
+            <input
+              type="checkbox"
+              checked={verifySecrets}
+              onChange={(e) => setVerifySecrets(e.target.checked)}
+              disabled={loading}
+              className="mt-1 h-4 w-4 accent-current"
+            />
+            <span>
+              <span className="font-bold text-ink">Verify supported secrets</span>
+              <span className="block text-muted-foreground">
+                Opt-in live checks for GitHub, Stripe, and HuggingFace tokens.
+              </span>
+            </span>
+          </label>
         </div>
         {error ? (
           <p

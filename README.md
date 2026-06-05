@@ -2,7 +2,7 @@
 
 > **Find the security gaps in your public GitHub repo — before attackers do.**
 
-RepoSec is a defensive, read-only scanner that audits a public GitHub repository and returns a clear, prioritized security report. It checks for exposed `.env` files, missing `.gitignore` rules, hardcoded secret patterns, missing `SECURITY.md` and `CODEOWNERS`, weak CI, Dockerfile misconfigurations, dependency hygiene, and more.
+RepoSec is a defensive, read-only scanner that audits a public GitHub repository and returns a clear, prioritized security report. It checks for exposed `.env` files, missing `.gitignore` rules, hardcoded secret patterns in source and deployed JavaScript bundles, missing `SECURITY.md` and `CODEOWNERS`, weak CI, Dockerfile misconfigurations, dependency hygiene, and more.
 
 The scanner **never modifies** the target repository and **never exfiltrates** its data. It is a hygiene tool, not an offensive one.
 
@@ -49,6 +49,7 @@ The scanner **never modifies** the target repository and **never exfiltrates** i
 - [⚙️ Configuration](#️-configuration)
 - [🛠️ Usage](#️-usage)
   - [Web UI](#web-ui)
+  - [Local CLI](#local-cli)
   - [Programmatic API](#programmatic-api)
   - [Screenshots](#screenshots)
 - [🧪 Testing](#-testing)
@@ -97,6 +98,7 @@ Why a defensive tool? Because catching mistakes early is cheaper, friendlier, an
 - 📥 **One-click exports** for:
   - Markdown report
   - JSON report
+  - SARIF report for GitHub Code Scanning
   - `SECURITY.md` template
   - `.env.example` template
   - GitHub issue checklist
@@ -104,6 +106,16 @@ Why a defensive tool? Because catching mistakes early is cheaper, friendlier, an
 - 🌗 **Polished UI** with a RepoSec design system, light/dark theming, and accessible shadcn-style primitives.
 - 🧪 **Read-only by design** — no writes, no auth, no database, no telemetry beyond the GitHub API.
 - 🐢 **No GitHub auth required** for public repos. Optional token raises the rate limit to 5000 req/h.
+
+### New scanner capabilities
+
+- **Full-repo secret file selection:** RepoSec fetches likely secret-bearing files across the tree, including JS/TS, Python, env files, shell scripts, Terraform, config files, keys, SQL, and source maps while skipping dependencies, build output, binary-heavy files, and oversized blobs.
+- **Deployed bundle scanning:** paste an optional deployed app URL and RepoSec fetches the public page, discovers JavaScript bundles and source maps, and scans the same assets users can inspect in Chrome DevTools Sources. If the repo metadata has a homepage URL, the API attempts that scan automatically.
+- **SARIF export:** reports can be exported as SARIF for GitHub Code Scanning and compatible security dashboards.
+- **Baseline suppression:** reviewed findings can be ignored with `.reposecignore`, `reposec-baseline.json`, or `.reposec-baseline.json` by matching finding id, fingerprint, file, file:line, or title.
+- **Local CLI:** scan private/local repos without uploading contents using `npm run scan:local -- .`; add `--history` to scan recent git history and `--format sarif` for CI output.
+- **Confidence and fingerprints:** secret findings include `confidence`, `fingerprint`, and optional `verified` metadata. Raw secret values stay server-side and evidence remains masked.
+- **Opt-in verification:** supported GitHub, Stripe, and HuggingFace tokens can be verified live with the web checkbox, API `verify: true`, or CLI `--verify`.
 
 ---
 
@@ -114,11 +126,14 @@ RepoSec is a server-rendered Next.js application. The browser is a thin client; 
 ```mermaid
 flowchart TD
     A[User pastes a public GitHub URL] --> B[Client posts to /api/scan]
+    A2[Optional deployed app URL] --> B
     B --> C[Server parses owner/repo]
     C --> D[GitHub REST API: repo metadata]
     D --> E[GitHub tree API: file tree]
-    E --> F[Fetch important files: README, .env*, Dockerfile, workflows, ...]
+    E --> F[Fetch important files and likely secret-bearing source files]
+    B --> X[Fetch deployed HTML, JS bundles, and source maps]
     F --> G[Rule-based scanner: 12 modules]
+    X --> G
     G --> H[Score calculation: 100 minus weighted findings]
     H --> I[ScanReport JSON]
     I --> J[Client renders score, tabs, findings]
@@ -129,6 +144,7 @@ Key design choices:
 
 - **Server-side fetching** keeps the GitHub token (if any) out of the browser and avoids CORS surprises.
 - **Static rule engine** in `lib/scanner.ts` — easy to extend, deterministic, easy to test.
+- **Bounded client-bundle scanning** only fetches public HTTPS pages/assets, caps file sizes, and blocks private/internal hosts.
 - **No persistence**: a scan is a single request/response cycle. There is no database to leak.
 
 ---
@@ -162,12 +178,18 @@ reposec/
 │   └── ui/                       # shadcn-style primitives (button, card, input, badge, tabs, skeleton, dialog)
 │
 ├── lib/
+│   ├── baseline.ts               # .reposecignore / baseline suppression
+│   ├── client-bundle.ts          # Public deployed JS bundle and source-map fetcher
+│   ├── fingerprint.ts            # Stable secret fingerprints for dedupe/baselines
 │   ├── github.ts                 # GitHub API client, URL parsing, error model
+│   ├── local-repo.ts             # Local filesystem and git-history scan loader
 │   ├── rules.ts                  # Secret pattern catalog + severity helpers
+│   ├── scan-targets.ts           # Shared scannable file/path selection
 │   ├── scanner.ts                # Rule-based scanner (12 modules, per-check pass/fail)
 │   ├── scoring.ts                # Score calculation and band assignment
-│   ├── exporters.ts              # Markdown / JSON / SECURITY.md / .env.example / issue checklist / fix prompt
+│   ├── exporters.ts              # Markdown / JSON / SARIF / templates / fix prompt
 │   ├── types.ts                  # Shared TypeScript types
+│   ├── verification.ts           # Opt-in supported-token verification
 │   └── utils.ts                  # cn(), formatters, secret masking
 │
 ├── public/
@@ -175,7 +197,10 @@ reposec/
 │   └── screenshots/              # Captured Playwright screenshots of the live UI
 │
 ├── scripts/
-│   └── capture-screenshots.mjs   # Playwright screenshot pipeline (npm run screenshots)
+│   ├── capture-screenshots.mjs   # Playwright screenshot pipeline (npm run screenshots)
+│   ├── reposec-cli.mts           # Local CLI scanner (npm run scan:local)
+│   ├── test-client-bundle.mts    # Deployed JS bundle regression test
+│   └── test-scanner.mts          # Rule-engine regression tests
 │
 ├── .env.example                  # Template for optional GITHUB_TOKEN
 ├── eslint.config.mjs             # ESLint 9 + Next + TypeScript configs
@@ -274,14 +299,52 @@ If you skip this step, the scanner still works — you just share the 60 req/h a
 
 1. Run `npm run dev` and open <http://localhost:3000>.
 2. Paste a public GitHub URL (or pick a sample repo).
-3. Watch the per-stage loader (metadata → tree → files → rules → score).
-4. Explore the report tabs:
+3. Optionally paste a deployed app URL to scan production JavaScript bundles and source maps.
+4. Optionally enable supported-token verification for GitHub, Stripe, and HuggingFace tokens.
+5. Watch the per-stage loader (metadata → tree → files → deployed bundles → rules → score).
+6. Explore the report tabs:
    - **Overview** — score gauge, severity counts, repo metadata, category breakdown.
    - **Findings** — every finding as a card with masked evidence and a "Fix it like this" panel.
    - **Fixes** — consolidated checklist.
    - **Checks** — full per-check pass/fail/warn table.
    - **Files** — file-grouped view of findings.
    - **Export** — copy or download the artifacts.
+
+### Local CLI
+
+Scan a local checkout without using the web UI:
+
+```bash
+# Markdown report to stdout
+npm run scan:local -- .
+
+# Include recent git history blobs
+npm run scan:local -- . --history
+
+# Write SARIF for GitHub Code Scanning or CI dashboards
+npm run scan:local -- . --format sarif --out reposec.sarif
+
+# Opt in to supported live token verification
+npm run scan:local -- . --verify
+```
+
+Baseline files are honored in both web/API and local CLI scans:
+
+```text
+# .reposecignore
+src/config.ts:12
+secret-generic-api-key-assignment-src/config.ts-12
+0123456789abcdef
+```
+
+```json
+{
+  "ignore": [
+    { "file": "src/config.ts", "line": 12 },
+    { "fingerprint": "0123456789abcdef" }
+  ]
+}
+```
 
 ### Programmatic API
 
@@ -292,7 +355,9 @@ POST /api/scan
 Content-Type: application/json
 
 {
-  "url": "https://github.com/vercel/next.js"
+  "url": "https://github.com/vercel/next.js",
+  "siteUrl": "https://nextjs.org",
+  "verify": false
 }
 ```
 
@@ -343,7 +408,7 @@ To regenerate them: `npm run screenshots` (builds the app, serves it on port 400
 
 ## 🧪 Testing
 
-The MVP ships with a screenshot-driven visual baseline and a strict type/lint pipeline. There is no unit test framework wired up yet.
+RepoSec ships with scanner regression tests, a deployed-bundle fixture test, screenshot-driven visual baselines, and a strict type/lint pipeline.
 
 ```bash
 # Type check (strict TypeScript)
@@ -355,14 +420,15 @@ npm run lint
 # Build the production bundle (catches many runtime issues at build time)
 npm run build
 
+# Run rule-engine and deployed-bundle scanner regressions
+npm run test:scanner
+
 # Regenerate the public/screenshots/ baseline
 npm run screenshots
 
 # Wipe build artifacts and the TS incremental cache
 npm run clean
 ```
-
-> **TODO:** Add a unit test framework (suggested: [Vitest](https://vitest.dev/) for the rule engine in `lib/scanner.ts` and `lib/rules.ts`).
 
 ---
 
@@ -376,6 +442,7 @@ sequenceDiagram
     participant W as Web UI (Next.js client)
     participant A as /api/scan (Next.js server)
     participant G as GitHub REST API
+    participant B as Public deployed JS bundles
     participant R as Rule engine (lib/scanner.ts)
     participant S as Scoring (lib/scoring.ts)
 
@@ -385,8 +452,10 @@ sequenceDiagram
     G-->>A: Repo metadata
     A->>G: GET /repos/{owner}/{repo}/git/trees/{branch}?recursive=1
     G-->>A: File tree
-    A->>G: GET raw files (README, .env*, Dockerfile, workflows, ...)
+    A->>G: GET raw files (README, source, config, workflows, ...)
     G-->>A: File contents
+    A->>B: GET HTML, JS bundles, source maps (optional)
+    B-->>A: Public client assets
     A->>R: runScan(repoData)
     R-->>A: findings + summary + checks
     A->>S: calculateScore(findings)
@@ -405,9 +474,11 @@ Validates a public GitHub URL, fetches repo data, runs the static scanner, and r
 
 **Request body**
 
-| Field | Type   | Required | Description                                |
-| ----- | ------ | -------- | ------------------------------------------ |
-| `url` | string | yes      | Full public GitHub URL, e.g. `https://github.com/owner/repo`. Trailing slashes and `.git` suffixes are tolerated. |
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `url` | string | yes | Full public GitHub URL, e.g. `https://github.com/owner/repo`. Trailing slashes and `.git` suffixes are tolerated. |
+| `siteUrl` | string | no | Optional public deployed app URL. RepoSec fetches public JS bundles and source maps from this site and scans them for secrets. HTTPS is enforced outside tests. |
+| `verify` | boolean | no | Opt in to supported live token verification. Currently GitHub, Stripe, and HuggingFace are checked with bounded requests. Defaults to `false`. |
 
 **Response (200)**
 
@@ -418,7 +489,7 @@ interface ScanResponse {
 }
 ```
 
-Where `ScanReport` is defined in `lib/types.ts:110` and includes `repo`, `score`, `scoreBand`, `summary`, `findings`, `filesChecked`, `fileGroups`, `scannedAt`, and `durationMs`.
+Where `ScanReport` is defined in `lib/types.ts` and includes `repo`, `score`, `scoreBand`, `summary`, `findings`, `filesChecked`, `fileGroups`, `scannedAt`, and `durationMs`. Secret findings may also include `confidence`, `fingerprint`, and `verified` metadata.
 
 **Error responses**
 
@@ -461,6 +532,9 @@ Example error body:
   "description": "Looks like a live Stripe secret key. Roll the key if real.",
   "severity": "critical",
   "category": "secret",
+  "confidence": "high",
+  "fingerprint": "0123456789abcdef",
+  "verified": false,
   "file": "src/config.ts",
   "line": 12,
   "evidence": "sk_l_********************def0",
@@ -533,13 +607,15 @@ The server listens on port `3000` by default. Override with `PORT=4000 npm run s
 Planned and aspirational improvements:
 
 - 🧠 **Optional LLM layer** — "Bring Your Own Key" provider to add narrative remediation to the report.
-- 🧪 **Unit tests** — Vitest coverage for `lib/scanner.ts`, `lib/rules.ts`, and `lib/scoring.ts`.
+- 🧪 **Unit tests** — expand the current scanner regression suite into Vitest coverage for `lib/scanner.ts`, `lib/rules.ts`, and `lib/scoring.ts`.
 - 🐳 **Container hardening** — committed `Dockerfile` and `docker-compose.yml`.
 - 🌐 **i18n** — multi-language report exports.
 - 🔌 **GitHub App mode** — comment the report on PRs via a public GitHub App.
 - 📦 **More ecosystems** — Python (`requirements.txt`, `pyproject.toml`), Go (`go.mod`), Rust (`Cargo.toml`) lockfile and audit checks.
 - 🪝 **Webhooks** — scheduled scans for the repos you watch.
 - 🪪 **License detection** — extend SPDX detection beyond the GitHub API metadata.
+
+- 🔐 **More verifiers** — add safe opt-in verification support for more providers without exposing raw secrets in reports.
 
 > **TODO:** A separate `ROADMAP.md` is not currently checked in. The list above is the source of truth until it is.
 
@@ -584,6 +660,7 @@ Please open an issue first if your change is large or design-related.
 > **TODO:** A `CHANGELOG.md` is not yet committed. Notable milestones to seed it with:
 
 - **0.1.0** — Initial MVP. Landing page, 12 check modules, 55+ secret patterns (ported from the gitleaks ruleset), score + band, exports (Markdown, JSON, `SECURITY.md`, `.env.example`, issue checklist, fix prompt), Playwright screenshot baseline.
+- **0.2.0** — Full-tree secret target selection, deployed JavaScript bundle scanning, SARIF export, local CLI, git-history scanning, baseline suppression, confidence/fingerprint metadata, opt-in supported-token verification, and bundle scanner regression tests.
 
 ---
 
@@ -596,6 +673,9 @@ Please open an issue first if your change is large or design-related.
 | Scan returns 0 findings and a perfect score | The repo is small or has no scannable files (yet). | Try a larger public repo, e.g. `vercel/next.js`. |
 | `.env.local` is missing after `cp .env.example .env.local` on Windows PowerShell | `cp` is not a native cmdlet. | Use `Copy-Item .env.example .env.local` instead. |
 | `npm run screenshots` fails | Playwright browsers are not installed. | Run `npx playwright install` once before the first capture. |
+| Deployed bundle scan finds no assets | The site URL is missing, not HTTPS, blocks server-side requests, or does not expose JS bundles through normal script/modulepreload tags. | Enter the public production URL manually and confirm the bundles are reachable without authentication. |
+| CLI SARIF output is empty | No findings matched after baseline suppression. | Run `npm run scan:local -- . --format json` and inspect `summary.checks` and `filesChecked`. |
+| A reviewed finding keeps returning | No baseline entry matches its id, fingerprint, file, or file:line. | Add the exact finding location or fingerprint to `.reposecignore` or `reposec-baseline.json`. |
 | Build complains about a missing `next-env.d.ts` | The file is generated by Next.js on first run. | Run `npm run dev` once, or delete `.next` and rebuild. |
 | Type errors after pulling new code | The incremental cache is stale. | Run `npm run clean` followed by `npm run typecheck`. |
 
@@ -608,6 +688,8 @@ RepoSec is a **defensive** security tool. It is designed to help maintainers fin
 - ✅ The scanner is **read-only**. It never writes to the target repository.
 - ✅ The scanner is **stateless**. No scan data is stored on the server.
 - ✅ The scanner **masks secrets** before they appear in the UI or exports.
+- ✅ Live verification is **opt-in** and raw candidates are discarded before reports are returned.
+- ✅ Deployed bundle scanning is bounded to public HTTPS assets and blocks private/internal hosts.
 - ✅ The scanner is **branded defensively** — the copy and code avoid language like "hack", "exploit", "bypass", or "steal".
 
 To report a vulnerability in RepoSec itself, please open a private security advisory on GitHub:
