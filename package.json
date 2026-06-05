@@ -9,7 +9,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "clean": "node -e \"const fs=require('fs');for (const p of ['.next','tsconfig.tsbuildinfo']) { try { fs.rmSync(p,{recursive:true,force:true}); } catch {} } console.log('cleaned')\"",
-    "screenshots": "node scripts/capture-screenshots.mjs"
+    "screenshots": "node scripts/capture-screenshots.mjs",
+    "test:scanner": "tsx scripts/test-scanner.mts"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",
@@ -32,6 +33,7 @@
     "eslint-config-next": "16.2.7",
     "playwright": "^1.60.0",
     "tailwindcss": "^4",
+    "tsx": "^4.22.4",
     "typescript": "^5"
   },
   "overrides": {
