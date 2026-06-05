@@ -10,6 +10,7 @@ The scanner **never modifies** the target repository and **never exfiltrates** i
   <a href="https://reposec.zanesense.dev"><img alt="Live Demo" src="https://img.shields.io/badge/Live%20Demo-reposec.zanesense.dev-22c55e?style=for-the-badge&logo=vercel&logoColor=white" /></a>
   <a href="https://github.com/zanesense/reposec/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge" /></a>
   <a href="https://github.com/zanesense/reposec"><img alt="Version" src="https://img.shields.io/badge/version-0.1.0-6366f1?style=for-the-badge" /></a>
+  <a href="https://www.npmjs.com/package/reposec"><img alt="npm package" src="https://img.shields.io/npm/v/reposec?style=for-the-badge&color=cb3837&logo=npm&logoColor=white" /></a>
   <a href="https://github.com/zanesense/reposec/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/zanesense/reposec?style=for-the-badge&color=facc15" /></a>
   <a href="https://github.com/zanesense/reposec/issues"><img alt="Issues" src="https://img.shields.io/github/issues/zanesense/reposec?style=for-the-badge&color=f97316" /></a>
   <a href="https://github.com/zanesense/reposec/pulls"><img alt="PRs" src="https://img.shields.io/github/issues-pr/zanesense/reposec?style=for-the-badge&color=38bdf8" /></a>
@@ -28,6 +29,7 @@ The scanner **never modifies** the target repository and **never exfiltrates** i
 | Link | Description |
 | --- | --- |
 | 🌐 [Live demo](https://reposec.zanesense.dev) | Hosted scanner at `reposec.zanesense.dev` |
+| 📦 [npm package](https://www.npmjs.com/package/reposec) | Run the local CLI with `npx reposec` |
 | 📦 [Repository](https://github.com/zanesense/reposec) | Source code, issues, and releases |
 | 🐛 [Issue tracker](https://github.com/zanesense/reposec/issues) | Report bugs and request features |
 | 🔀 [Pull requests](https://github.com/zanesense/reposec/pulls) | Open a PR to contribute |
@@ -45,6 +47,7 @@ The scanner **never modifies** the target repository and **never exfiltrates** i
 - [🧰 Technologies](#-technologies)
 - [📋 Requirements](#-requirements)
 - [🛠️ Installation](#️-installation)
+  - [npm CLI](#npm-cli)
   - [Production build](#production-build)
 - [⚙️ Configuration](#️-configuration)
 - [🛠️ Usage](#️-usage)
@@ -113,7 +116,7 @@ Why a defensive tool? Because catching mistakes early is cheaper, friendlier, an
 - **Deployed bundle scanning:** paste an optional deployed app URL and RepoSec fetches the public page, discovers JavaScript bundles and source maps, and scans the same assets users can inspect in Chrome DevTools Sources. If the repo metadata has a homepage URL, the API attempts that scan automatically.
 - **SARIF export:** reports can be exported as SARIF for GitHub Code Scanning and compatible security dashboards.
 - **Baseline suppression:** reviewed findings can be ignored with `.reposecignore`, `reposec-baseline.json`, or `.reposec-baseline.json` by matching finding id, fingerprint, file, file:line, or title.
-- **Local CLI:** scan private/local repos without uploading contents using `npm run scan:local -- .`; add `--history` to scan recent git history and `--format sarif` for CI output.
+- **Local CLI:** scan private/local repos without uploading contents using `npx reposec .`; add `--history` to scan recent git history, `--format sarif` for CI output, and `--color` or `--no-color` to control terminal formatting.
 - **Confidence and fingerprints:** secret findings include `confidence`, `fingerprint`, and optional `verified` metadata. Raw secret values stay server-side and evidence remains masked.
 - **Opt-in verification:** supported GitHub, Stripe, and HuggingFace tokens can be verified live with the web checkbox, API `verify: true`, or CLI `--verify`.
 
@@ -211,7 +214,7 @@ reposec/
 └── README.md                     # You are here
 ```
 
-> **TODO:** Add a top-level `LICENSE` file. The current `.gitignore` does not exclude it, and the project is shipped as MIT.
+RepoSec is distributed under the MIT License. See [`LICENSE`](LICENSE) for the full terms.
 
 ---
 
@@ -266,6 +269,19 @@ npm run dev
 
 Open <http://localhost:3000> and paste a public GitHub URL, e.g. `https://github.com/vercel/next.js`.
 
+### npm CLI
+
+Run RepoSec on any local checkout without installing the web app:
+
+```bash
+# One-off scan with npm
+npx reposec .
+
+# Or install globally
+npm install -g reposec
+reposec .
+```
+
 ### Production build
 
 ```bash
@@ -316,17 +332,23 @@ Scan a local checkout without using the web UI:
 
 ```bash
 # Markdown report to stdout
-npm run scan:local -- .
+npx reposec .
 
 # Include recent git history blobs
-npm run scan:local -- . --history
+npx reposec . --history
 
 # Write SARIF for GitHub Code Scanning or CI dashboards
-npm run scan:local -- . --format sarif --out reposec.sarif
+npx reposec . --format sarif --out reposec.sarif
 
 # Opt in to supported live token verification
-npm run scan:local -- . --verify
+npx reposec . --verify
+
+# Force or disable colored terminal Markdown output
+npx reposec . --color
+npx reposec . --no-color
 ```
+
+Inside this repository, `npm run scan:local -- .` runs the same CLI from source.
 
 Baseline files are honored in both web/API and local CLI scans:
 
@@ -674,7 +696,7 @@ Please open an issue first if your change is large or design-related.
 | `.env.local` is missing after `cp .env.example .env.local` on Windows PowerShell | `cp` is not a native cmdlet. | Use `Copy-Item .env.example .env.local` instead. |
 | `npm run screenshots` fails | Playwright browsers are not installed. | Run `npx playwright install` once before the first capture. |
 | Deployed bundle scan finds no assets | The site URL is missing, not HTTPS, blocks server-side requests, or does not expose JS bundles through normal script/modulepreload tags. | Enter the public production URL manually and confirm the bundles are reachable without authentication. |
-| CLI SARIF output is empty | No findings matched after baseline suppression. | Run `npm run scan:local -- . --format json` and inspect `summary.checks` and `filesChecked`. |
+| CLI SARIF output is empty | No findings matched after baseline suppression. | Run `npx reposec . --format json` and inspect `summary.checks` and `filesChecked`. |
 | A reviewed finding keeps returning | No baseline entry matches its id, fingerprint, file, or file:line. | Add the exact finding location or fingerprint to `.reposecignore` or `reposec-baseline.json`. |
 | Build complains about a missing `next-env.d.ts` | The file is generated by Next.js on first run. | Run `npm run dev` once, or delete `.next` and rebuild. |
 | Type errors after pulling new code | The incremental cache is stale. | Run `npm run clean` followed by `npm run typecheck`. |
@@ -694,7 +716,9 @@ RepoSec is a **defensive** security tool. It is designed to help maintainers fin
 
 To report a vulnerability in RepoSec itself, please open a private security advisory on GitHub:
 
-> **TODO:** Enable GitHub private security advisories in the repo settings and replace this line with the direct advisory URL.
+https://github.com/zanesense/reposec/security/advisories/new
+
+For supported versions and response timelines, see [`SECURITY.md`](SECURITY.md).
 
 **Never** commit real secrets to this repository. The included `.gitignore` already excludes `.env*` (with `.env.example` whitelisted as a template).
 
@@ -702,9 +726,7 @@ To report a vulnerability in RepoSec itself, please open a private security advi
 
 ## 📄 License
 
-MIT.
-
-> **TODO:** A `LICENSE` file is not yet committed. The project is shipped as MIT; add the standard MIT license text to a top-level `LICENSE` file before the first public release.
+RepoSec is licensed under the MIT License. See [`LICENSE`](LICENSE) for the full license text.
 
 ---
 

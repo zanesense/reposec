@@ -1,0 +1,18 @@
+# Repository defaults
+* @zanesense/reposec-maintainers
+
+# Application UI and routes
+/app/ @zanesense/reposec-frontend
+/components/ @zanesense/reposec-frontend
+/public/ @zanesense/reposec-frontend
+
+# Scanner engine, scoring, exports, and local CLI
+/lib/ @zanesense/reposec-security
+/scripts/ @zanesense/reposec-security
+
+# Project configuration, dependency hygiene, and governance
+/.github/ @zanesense/reposec-maintainers @zanesense/reposec-security
+/package.json @zanesense/reposec-maintainers
+/package-lock.json @zanesense/reposec-maintainers
+/SECURITY.md @zanesense/reposec-security
+/LICENSE @zanesense/reposec-maintainers
