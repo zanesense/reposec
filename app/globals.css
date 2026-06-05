@@ -1,26 +1,291 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #fbf7ee;
+  --paper-2: #f5efe0;
+  --ink: #1a1a1a;
+  --ink-soft: #404040;
+  --ink-faint: #8a8a8a;
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+  --border: #1a1a1a;
+  --input: #1a1a1a;
+  --ring: #22c55e;
+
+  --primary: #1a1a1a;
+  --primary-foreground: #fbf7ee;
+  --secondary: #fef3c7;
+  --secondary-foreground: #1a1a1a;
+  --muted: #f5efe0;
+  --muted-foreground: #5a5a5a;
+  --accent: #22c55e;
+  --accent-foreground: #052e16;
+  --destructive: #ef4444;
+  --destructive-foreground: #fef2f2;
+
+  --marker: #f97316;
+  --highlight: #facc15;
+  --pencil: #6b7280;
+
+  --critical: #ef4444;
+  --high: #f97316;
+  --medium: #facc15;
+  --low: #3b82f6;
+  --info: #6b7280;
+
+  --radius: 1rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
+
+  --shadow-sticker: 4px 4px 0 0 #1a1a1a;
+  --shadow-sticker-sm: 2px 2px 0 0 #1a1a1a;
+  --shadow-sticker-lg: 6px 6px 0 0 #1a1a1a;
+
+  --font-display: var(--font-caveat), "Caveat", "Comic Sans MS", cursive;
+  --font-body: var(--font-quicksand), "Quicksand", ui-sans-serif, system-ui,
+    sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo,
+    monospace;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--paper);
+  --color-foreground: var(--ink);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-marker: var(--marker);
+  --color-highlight: var(--highlight);
+  --color-pencil: var(--pencil);
+  --color-critical: var(--critical);
+  --color-high-sev: var(--high);
+  --color-medium: var(--medium);
+  --color-low: var(--low);
+  --color-info: var(--info);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
+  --font-display: var(--font-display);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  body {
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-feature-settings: "rlig" 1, "calt" 1;
+    background-image:
+      radial-gradient(
+        color-mix(in oklab, var(--ink) 5%, transparent) 1px,
+        transparent 1px
+      );
+    background-size: 22px 22px;
+    background-position: 0 0;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+  }
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--font-mono);
+  }
+  ::selection {
+    background-color: var(--highlight);
+    color: var(--ink);
+  }
+  button {
+    font-family: var(--font-body);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  .doodle-border {
+    border: 2.5px solid var(--ink);
+    border-radius: 1rem;
+    box-shadow: var(--shadow-sticker-sm);
+  }
+  .doodle-card {
+    border: 2.5px solid var(--ink);
+    border-radius: 1.25rem;
+    background: var(--card);
+    box-shadow: var(--shadow-sticker);
+  }
+  .doodle-card-lg {
+    border: 3px solid var(--ink);
+    border-radius: 1.5rem;
+    background: var(--card);
+    box-shadow: var(--shadow-sticker-lg);
+  }
+  .doodle-sticker {
+    border: 2.5px solid var(--ink);
+    border-radius: 999px;
+    background: var(--card);
+    box-shadow: var(--shadow-sticker-sm);
+  }
+  .sticker-shadow {
+    box-shadow: var(--shadow-sticker);
+  }
+  .sticker-shadow-sm {
+    box-shadow: var(--shadow-sticker-sm);
+  }
+  .sticker-shadow-lg {
+    box-shadow: var(--shadow-sticker-lg);
+  }
+  .squiggle-underline {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 12' fill='none' stroke='%23F97316' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M2 8 Q 12 0, 22 8 T 42 8 T 62 8 T 78 4'/></svg>");
+    background-repeat: repeat-x;
+    background-position: 0 100%;
+    background-size: 80px 10px;
+    padding-bottom: 10px;
+  }
+  .squiggle-underline-green {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 12' fill='none' stroke='%2322C55E' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M2 8 Q 12 0, 22 8 T 42 8 T 62 8 T 78 4'/></svg>");
+    background-repeat: repeat-x;
+    background-position: 0 100%;
+    background-size: 80px 10px;
+    padding-bottom: 10px;
+  }
+  .highlight-marker {
+    background-image: linear-gradient(
+      180deg,
+      transparent 60%,
+      color-mix(in oklab, var(--highlight) 75%, transparent) 60%
+    );
+    padding: 0 0.15em;
+  }
+  .highlight-marker-orange {
+    background-image: linear-gradient(
+      180deg,
+      transparent 60%,
+      color-mix(in oklab, var(--marker) 55%, transparent) 60%
+    );
+    padding: 0 0.15em;
+  }
+  .paper-shadow {
+    box-shadow:
+      var(--shadow-sticker),
+      inset 0 0 0 1px color-mix(in oklab, var(--ink) 6%, transparent);
+  }
+  .sticker-tilt-left {
+    transform: rotate(-1.5deg);
+  }
+  .sticker-tilt-right {
+    transform: rotate(1.5deg);
+  }
+  .sticker-tilt-flat-l {
+    transform: rotate(-0.6deg);
+  }
+  .sticker-tilt-flat-r {
+    transform: rotate(0.6deg);
+  }
+  .doodle-arrow {
+    filter: drop-shadow(2px 2px 0 var(--ink));
+  }
+}
+
+@keyframes wiggle {
+  0%,
+  100% {
+    transform: rotate(-1.5deg);
+  }
+  50% {
+    transform: rotate(1.5deg);
+  }
+}
+.animate-wiggle {
+  animation: wiggle 2.4s ease-in-out infinite;
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 200;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.draw-path {
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  animation: draw 2s ease-out forwards;
+}
+
+@keyframes float-soft {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+.animate-float-soft {
+  animation: float-soft 4s ease-in-out infinite;
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.65;
+  }
+}
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
