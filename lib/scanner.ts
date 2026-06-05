@@ -109,6 +109,96 @@ function maskLine(line: string): string {
   );
 }
 
+function isInsideString(line: string, matchIndex: number): boolean {
+  const before = line.slice(0, matchIndex);
+  const singleQuotes = (before.match(/'/g) ?? []).length;
+  const doubleQuotes = (before.match(/"/g) ?? []).length;
+  const backticks = (before.match(/`/g) ?? []).length;
+  return singleQuotes % 2 === 1 || doubleQuotes % 2 === 1 || backticks % 2 === 1;
+}
+
+function isTestFile(path: string): boolean {
+  return (
+    /\.(test|spec)\.[cm]?[jt]sx?$/.test(path) ||
+    /(^|\/)__tests__\//.test(path) ||
+    /(^|\/)__mocks__\//.test(path) ||
+    /(^|\/)__fixtures__\//.test(path) ||
+    /(^|\/)test\//.test(path) ||
+    /(^|\/)tests\//.test(path) ||
+    /(^|\/)fixtures?\//.test(path)
+  );
+}
+
+function readGitignorePatterns(content: string): string[] {
+  return content
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("#"));
+}
+
+function gitignoreCoversAny(
+  content: string,
+  matchers: Array<(pattern: string) => boolean>,
+): boolean {
+  for (const raw of readGitignorePatterns(content)) {
+    let pattern = raw;
+    if (pattern.startsWith("!")) continue;
+    pattern = pattern.replace(/^(?:\/?\*\*\/)+/, "").replace(/^\//, "");
+    if (pattern.endsWith("/")) pattern = pattern.slice(0, -1);
+    for (const matcher of matchers) {
+      if (matcher(pattern)) return true;
+    }
+  }
+  return false;
+}
+
+const envMatchers: Array<(p: string) => boolean> = [
+  (p) => p === ".env",
+  (p) => p === "**/.env",
+  (p) => p === ".env*",
+  (p) => p === "**/.env*",
+  (p) => p.startsWith(".env."),
+  (p) => p.startsWith("**/.env."),
+  (p) => p.startsWith(".env/"),
+];
+
+const buildOutputMatchers: Array<(p: string) => boolean> = [
+  (p) => p === "dist" || p.startsWith("dist/"),
+  (p) => p === "build" || p.startsWith("build/"),
+  (p) => p === "out" || p.startsWith("out/"),
+  (p) => p === ".next" || p.startsWith(".next/"),
+  (p) => p === ".nuxt" || p.startsWith(".nuxt/"),
+  (p) => p === "*.output" || p.startsWith("*.output/"),
+  (p) => p === "coverage" || p.startsWith("coverage/"),
+];
+
+const nodeModulesMatchers: Array<(p: string) => boolean> = [
+  (p) => p === "node_modules",
+  (p) => p === "node_modules/",
+  (p) => p === "**/node_modules",
+  (p) => p === "**/node_modules/**",
+  (p) => p.startsWith("node_modules/"),
+  (p) => p.startsWith("**/node_modules/"),
+];
+
+function hasHeadingContaining(
+  content: string,
+  keywords: string[],
+): { found: boolean; matchedHeading?: string; keyword?: string } {
+  for (const line of content.split(/\r?\n/)) {
+    const m = line.match(/^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/);
+    if (!m) continue;
+    const heading = m[2].trim();
+    const lowered = heading.toLowerCase();
+    for (const kw of keywords) {
+      if (lowered.includes(kw.toLowerCase())) {
+        return { found: true, matchedHeading: heading, keyword: kw };
+      }
+    }
+  }
+  return { found: false };
+}
+
 function missingFile(ctx: ScanContext, path: string): void {
   ctx.filesMissing.push(path);
   ctx.filesChecked.add(path);
@@ -228,40 +318,38 @@ function checkGitignore(ctx: ScanContext): void {
   }
   presentFile(ctx, ".gitignore");
 
-  const lines = getLines(gi.content).map((l) => l.trim());
-  const joined = lines.join("\n");
   const checks: Array<{
-    pattern: RegExp;
     id: string;
     title: string;
-    fix: string;
     severity: Severity;
+    fix: string;
+    covered: boolean;
   }> = [
     {
-      pattern: /(^|\/)\.env(\.|$|\s|$)/,
       id: "gitignore-env",
       title: ".gitignore covers .env files",
-      fix: "Add entries like `.env`, `.env.*`, and `!.env.example` to .gitignore so secrets are not committed.",
       severity: "high",
+      fix: "Add an entry like `.env`, `.env*`, or `.env.*` to .gitignore (and `!.env.example` if you ship a template).",
+      covered: gitignoreCoversAny(gi.content, envMatchers),
     },
     {
-      pattern: /(^|\/)node_modules\/?(\s|$)/,
       id: "gitignore-node-modules",
       title: ".gitignore ignores node_modules",
-      fix: "Add `node_modules/` to .gitignore so dependencies are not committed.",
       severity: "low",
+      fix: "Add `node_modules/` to .gitignore so dependencies are not committed.",
+      covered: gitignoreCoversAny(gi.content, nodeModulesMatchers),
     },
     {
-      pattern: /(^|\/)(dist|build|out)\/?(\s|$)/,
       id: "gitignore-build",
       title: ".gitignore ignores build output",
-      fix: "Add `dist/`, `build/`, and `out/` to .gitignore.",
       severity: "low",
+      fix: "Add entries for your build output (`dist/`, `build/`, `out/`, `.next/`, `coverage/`, etc.) to .gitignore.",
+      covered: gitignoreCoversAny(gi.content, buildOutputMatchers),
     },
   ];
 
   for (const check of checks) {
-    if (!check.pattern.test(joined)) {
+    if (!check.covered) {
       addCheck(
         ctx,
         check.id,
@@ -274,7 +362,9 @@ function checkGitignore(ctx: ScanContext): void {
       ctx.findings.push(
         makeFinding(
           check.id,
-          check.title.replace(" ignores", " should ignore").replace(" covers", " should cover"),
+          check.title
+            .replace(" ignores", " should ignore")
+            .replace(" covers", " should cover"),
           "Your .gitignore is missing an important entry. This can leak secrets or bloat the repository.",
           check.severity,
           "environment",
@@ -330,27 +420,44 @@ function checkDocumentation(ctx: ScanContext): void {
       "README.md is present in the repository root.",
       { file: "README.md" },
     );
-    const body = readme.content.toLowerCase();
+
     const sections: Array<{
-      keys: string[];
+      keywords: string[];
       id: string;
       title: string;
       fix: string;
       severity: Severity;
     }> = [
       {
-        keys: ["## install", "## setup", "## getting started", "## quickstart"],
+        keywords: [
+          "install",
+          "installation",
+          "setup",
+          "getting started",
+          "quickstart",
+          "quick start",
+          "how to start",
+          "how to use",
+          "build",
+          "running",
+          "run locally",
+          "local development",
+          "development",
+        ],
         id: "readme-setup",
         title: "README documents setup steps",
         fix: "Add an Install / Getting Started section with the exact commands a new user has to run.",
         severity: "low",
       },
       {
-        keys: [
-          "## environment variables",
-          "## env",
-          "environment variables",
+        keywords: [
+          "environment variable",
+          "env var",
+          "env vars",
           ".env",
+          "configuration",
+          "config",
+          "settings",
         ],
         id: "readme-env",
         title: "README documents environment variables",
@@ -358,7 +465,13 @@ function checkDocumentation(ctx: ScanContext): void {
         severity: "low",
       },
       {
-        keys: ["## security", "security policy", "## reporting"],
+        keywords: [
+          "security",
+          "security policy",
+          "reporting",
+          "responsible disclosure",
+          "vulnerability",
+        ],
         id: "readme-security",
         title: "README has a security section",
         fix: "Add a Security section that links to SECURITY.md and explains how to report vulnerabilities.",
@@ -367,8 +480,8 @@ function checkDocumentation(ctx: ScanContext): void {
     ];
 
     for (const section of sections) {
-      const has = section.keys.some((k) => body.includes(k));
-      if (!has) {
+      const result = hasHeadingContaining(readme.content, section.keywords);
+      if (!result.found) {
         addCheck(
           ctx,
           section.id,
@@ -396,7 +509,7 @@ function checkDocumentation(ctx: ScanContext): void {
           "documentation",
           section.title,
           "pass",
-          "Section is present in the README.",
+          `Found a "${result.matchedHeading}" heading in the README.`,
           { file: "README.md" },
         );
       }
@@ -1059,14 +1172,15 @@ function checkWorkflowQuality(ctx: ScanContext): void {
   let runsTests = false;
   let runsAudit = false;
   let hasWriteAll = false;
+  const TEST_PATTERN =
+    /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?test\b|\bcargo\s+test\b|\bgo\s+test\b|\bpytest\b|\bmake\s+test\b|\bgradle\s+test\b|\bmvn\s+test\b|\bdotnet\s+test\b|\bbun\s+test\b|\bvitest\s+run\b|\bjest\b/i;
+  const AUDIT_PATTERN =
+    /\bnpm\s+audit\b|\bpnpm\s+audit\b|\byarn\s+audit\b|\bpip-audit\b|\bsafety\s+(?:check|scan)\b|\bcargo\s+audit\b|\bdotnet\s+list\s+package\s+--vulnerable\b|\btrivy\b|\bsnyk\b|\bdependabot\b|\bgovulncheck\b|\bcomposer\s+audit\b/i;
   for (const wf of workflowFiles) {
     const lower = wf.content.toLowerCase();
     if (lower.includes("pull_request")) anyOnPullRequest = true;
-    if (/\b(npm|pnpm|yarn)\s+(test|run\s+test)/.test(lower)) runsTests = true;
-    if (
-      /\b(audit|npm\s+audit|pip-audit|safety\s+check)\b/.test(lower)
-    )
-      runsAudit = true;
+    if (TEST_PATTERN.test(wf.content)) runsTests = true;
+    if (AUDIT_PATTERN.test(wf.content)) runsAudit = true;
     if (/permissions:\s*write-all/.test(lower)) hasWriteAll = true;
   }
 
@@ -1195,7 +1309,7 @@ function checkWorkflowQuality(ctx: ScanContext): void {
 function checkMetadata(ctx: ScanContext): void {
   const meta = ctx.repo.metadata;
 
-  if (!meta.description || meta.description.trim().length < 5) {
+  if (!meta.description || meta.description.trim().length === 0) {
     addCheck(
       ctx,
       "meta-description",
@@ -1339,13 +1453,14 @@ function checkCodePatterns(ctx: ScanContext): void {
     ".mjs",
     ".cjs",
   ]);
-  const SKIP_DIRS = ["node_modules", "dist", "build", ".next", "out", "coverage", ".git"];
+  const SKIP_DIRS = ["node_modules", "dist", "build", ".next", "out", "coverage", ".git", "vendor"];
 
   for (const file of ctx.repo.files) {
     const lower = file.path.toLowerCase();
     if (SKIP_DIRS.some((d) => lower.includes(`/${d}/`) || lower.startsWith(`${d}/`))) {
       continue;
     }
+    if (isTestFile(lower)) continue;
     if (![...TARGET_EXT].some((ext) => lower.endsWith(ext))) continue;
     if (file.content.length > 1_500_000) continue;
 
@@ -1354,82 +1469,91 @@ function checkCodePatterns(ctx: ScanContext): void {
       const line = lines[i] ?? "";
       if (isCommentedLine(line)) continue;
 
-      if (/\beval\s*\(/.test(line)) {
-        addFindingAndCheck(
-          ctx,
-          {
-            id: `code-eval-${file.path}-${i + 1}`,
-            title: "Use of eval()",
-            description:
-              "eval() executes arbitrary strings as code and is almost always a remote code execution risk.",
-            severity: "high",
-            category: "code",
-            fix: "Replace eval() with a safer alternative (JSON.parse for data, explicit dispatch for code paths).",
-            file: file.path,
-            line: i + 1,
-            evidence: maskLine(line).slice(0, 200),
-          },
-          {
-            id: "code-eval",
-            category: "code",
-            title: "No use of eval() in source",
-            file: file.path,
-            line: i + 1,
-          },
-        );
-        break;
+      const evalMatch = /\beval\s*\(/.exec(line);
+      if (evalMatch) {
+        if (!isInsideString(line, evalMatch.index)) {
+          addFindingAndCheck(
+            ctx,
+            {
+              id: `code-eval-${file.path}-${i + 1}`,
+              title: "Use of eval()",
+              description:
+                "eval() executes arbitrary strings as code and is almost always a remote code execution risk.",
+              severity: "high",
+              category: "code",
+              fix: "Replace eval() with a safer alternative (JSON.parse for data, explicit dispatch for code paths).",
+              file: file.path,
+              line: i + 1,
+              evidence: maskLine(line).slice(0, 200),
+            },
+            {
+              id: "code-eval",
+              category: "code",
+              title: "No use of eval() in source",
+              file: file.path,
+              line: i + 1,
+            },
+          );
+          break;
+        }
       }
 
-      if (/\bnew\s+Function\s*\(/.test(line)) {
-        addFindingAndCheck(
-          ctx,
-          {
-            id: `code-new-function-${file.path}-${i + 1}`,
-            title: "Use of new Function()",
-            description:
-              "new Function() evaluates a string at runtime, with the same risks as eval().",
-            severity: "high",
-            category: "code",
-            fix: "Replace with a static function or a safe evaluator with a strict grammar.",
-            file: file.path,
-            line: i + 1,
-            evidence: maskLine(line).slice(0, 200),
-          },
-          {
-            id: "code-new-function",
-            category: "code",
-            title: "No use of new Function() in source",
-            file: file.path,
-            line: i + 1,
-          },
-        );
-        break;
+      const fnMatch = /\bnew\s+Function\s*\(/.exec(line);
+      if (fnMatch) {
+        if (!isInsideString(line, fnMatch.index)) {
+          addFindingAndCheck(
+            ctx,
+            {
+              id: `code-new-function-${file.path}-${i + 1}`,
+              title: "Use of new Function()",
+              description:
+                "new Function() evaluates a string at runtime, with the same risks as eval().",
+              severity: "high",
+              category: "code",
+              fix: "Replace with a static function or a safe evaluator with a strict grammar.",
+              file: file.path,
+              line: i + 1,
+              evidence: maskLine(line).slice(0, 200),
+            },
+            {
+              id: "code-new-function",
+              category: "code",
+              title: "No use of new Function() in source",
+              file: file.path,
+              line: i + 1,
+            },
+          );
+          break;
+        }
       }
 
-      if (/dangerouslySetInnerHTML/.test(line)) {
-        addFindingAndCheck(
-          ctx,
-          {
-            id: `code-dangerously-set-${file.path}-${i + 1}`,
-            title: "Use of dangerouslySetInnerHTML",
-            description:
-              "dangerouslySetInnerHTML injects raw HTML into the DOM and bypasses React's XSS protections. Make sure the input is sanitized.",
-            severity: "medium",
-            category: "code",
-            fix: "Sanitize input with DOMPurify (or equivalent) before passing it to dangerouslySetInnerHTML, or render via React children instead.",
-            file: file.path,
-            line: i + 1,
-            evidence: maskLine(line).slice(0, 200),
-          },
-          {
-            id: "code-dangerously-set",
-            category: "code",
-            title: "dangerouslySetInnerHTML is sanitized",
-            file: file.path,
-            line: i + 1,
-          },
-        );
-        break;
+      const dsrMatch = /dangerouslySetInnerHTML/.exec(line);
+      if (dsrMatch) {
+        if (!isInsideString(line, dsrMatch.index)) {
+          addFindingAndCheck(
+            ctx,
+            {
+              id: `code-dangerously-set-${file.path}-${i + 1}`,
+              title: "Use of dangerouslySetInnerHTML",
+              description:
+                "dangerouslySetInnerHTML injects raw HTML into the DOM and bypasses React's XSS protections. Make sure the input is sanitized.",
+              severity: "medium",
+              category: "code",
+              fix: "Sanitize input with DOMPurify (or equivalent) before passing it to dangerouslySetInnerHTML, or render via React children instead.",
+              file: file.path,
+              line: i + 1,
+              evidence: maskLine(line).slice(0, 200),
+            },
+            {
+              id: "code-dangerously-set",
+              category: "code",
+              title: "dangerouslySetInnerHTML is sanitized",
+              file: file.path,
+              line: i + 1,
+            },
+          );
+          break;
+        }
       }
     }
   }
