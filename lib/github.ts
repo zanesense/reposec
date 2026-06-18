@@ -3,8 +3,8 @@ import type {
   RepoData,
   RepoFile,
   RepoMetadata,
-} from "./types";
-import { isLikelySecretScanPath, secretScanPriority } from "./scan-targets";
+} from "./types.ts";
+import { isLikelySecretScanPath, secretScanPriority } from "./scan-targets.ts";
 
 const GITHUB_API = "https://api.github.com";
 const RAW_BASE = "https://raw.githubusercontent.com";

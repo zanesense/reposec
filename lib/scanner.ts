@@ -1,10 +1,10 @@
-import { maskSecret } from "./utils";
-import { fingerprintSecret } from "./fingerprint";
-import { applyRepoBaseline } from "./baseline";
+import { maskSecret } from "./secrets.ts";
+import { fingerprintSecret } from "./fingerprint.ts";
+import { applyRepoBaseline } from "./baseline.ts";
 import {
   isLikelySecretScanPath,
   secretScanPriority,
-} from "./scan-targets";
+} from "./scan-targets.ts";
 import type {
   CategoryBreakdown,
   CheckResult,
@@ -17,7 +17,7 @@ import type {
   RepoFile,
   ScanSummary,
   Severity,
-} from "./types";
+} from "./types.ts";
 import {
   fileContainsAnyNeedle,
   isCommentedLine,
@@ -25,7 +25,7 @@ import {
   SECRET_PATTERNS,
   SEVERITY_RANK,
   SEVERITY_WEIGHT,
-} from "./rules";
+} from "./rules.ts";
 
 interface ScanContext {
   repo: RepoData;

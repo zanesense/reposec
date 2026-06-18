@@ -337,6 +337,9 @@ npx reposec .
 # Include recent git history blobs
 npx reposec . --history
 
+# Scan deployed public JS bundles too
+npx reposec . --site https://your-app.example.com
+
 # Write SARIF for GitHub Code Scanning or CI dashboards
 npx reposec . --format sarif --out reposec.sarif
 

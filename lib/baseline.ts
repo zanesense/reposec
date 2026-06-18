@@ -1,4 +1,4 @@
-import type { Finding, RepoFile } from "./types";
+import type { Finding, RepoFile } from "./types.ts";
 
 interface BaselineJson {
   ignore?: Array<

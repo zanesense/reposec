@@ -1,6 +1,6 @@
 import { promises as dns } from "node:dns";
 import net from "node:net";
-import type { RepoFile } from "./types";
+import type { RepoFile } from "./types.ts";
 
 const MAX_HTML_BYTES = 750_000;
 const MAX_ASSET_BYTES = 1_500_000;

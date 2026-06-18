@@ -1,5 +1,5 @@
-import type { Finding } from "./types";
-import type { SecretCandidate } from "./scanner";
+import type { Finding } from "./types.ts";
+import type { SecretCandidate } from "./scanner.ts";
 
 const VERIFY_TIMEOUT_MS = 6_000;
 

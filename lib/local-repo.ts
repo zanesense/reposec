@@ -1,8 +1,8 @@
 import { execFileSync } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { RepoData, RepoFile } from "./types";
-import { isLikelySecretScanPath } from "./scan-targets";
+import type { RepoData, RepoFile } from "./types.ts";
+import { isLikelySecretScanPath } from "./scan-targets.ts";
 
 const LOCAL_SKIP_DIRS = new Set([
   ".git",

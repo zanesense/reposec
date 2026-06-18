@@ -1,5 +1,5 @@
-import type { Finding, ScoreBand, Severity } from "./types";
-import { SEVERITY_WEIGHT } from "./rules";
+import type { Finding, ScoreBand, Severity } from "./types.ts";
+import { SEVERITY_WEIGHT } from "./rules.ts";
 
 export const SCORE_START = 100;
 

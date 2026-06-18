@@ -6,8 +6,8 @@ import type {
   FindingCategory,
   ScanReport,
   Severity,
-} from "./types";
-import { BAND_LABELS, groupBySeverity, SEVERITY_ORDER } from "./scoring";
+} from "./types.ts";
+import { BAND_LABELS, groupBySeverity, SEVERITY_ORDER } from "./scoring.ts";
 
 const HEADING = (text: string) => `${text}\n${"-".repeat(text.length)}`;
 

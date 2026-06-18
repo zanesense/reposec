@@ -1,4 +1,4 @@
-import type { Severity, FindingCategory } from "./types";
+import type { Severity, FindingCategory } from "./types.ts";
 
 export interface SecretPattern {
   name: string;
