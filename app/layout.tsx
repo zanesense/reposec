@@ -49,7 +49,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${caveat.variable} ${quicksand.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${caveat.variable} ${quicksand.variable} ${geistMono.variable} h-full antialiased scroll-smooth`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col text-foreground">

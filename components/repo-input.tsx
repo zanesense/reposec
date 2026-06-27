@@ -47,7 +47,7 @@ export function RepoInput({ compact = false }: { compact?: boolean }) {
     });
     if (deployedUrl.trim()) params.set("site", deployedUrl.trim());
     if (verify) params.set("verify", "1");
-    router.push(`/scan?${params.toString()}`);
+    router.push(`/report?${params.toString()}`);
   }
 
   function handlePromptOpenChange(open: boolean) {

@@ -55,6 +55,15 @@ const LOCKFILES = [
   "bun.lockb",
 ];
 
+const GITHUB_FETCH_TIMEOUT = 15_000;
+const RAW_FETCH_TIMEOUT = 10_000;
+
+function fetchWithTimeout(url: string | URL, timeoutMs: number, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timeout));
+}
+
 export class GitHubError extends Error {
   status: number;
   code: "not_found" | "private" | "rate_limited" | "invalid" | "unknown";
@@ -105,7 +114,7 @@ function buildHeaders(): HeadersInit {
 }
 
 async function githubFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${GITHUB_API}${path}`, {
+  const res = await fetchWithTimeout(`${GITHUB_API}${path}`, GITHUB_FETCH_TIMEOUT, {
     headers: buildHeaders(),
     cache: "no-store",
   });
@@ -153,7 +162,7 @@ async function fetchRawFile(
   const encodedPath = path.split("/").map(encodeURIComponent).join("/");
   const url = `${RAW_BASE}/${owner}/${repo}/${ref}/${encodedPath}`;
   try {
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, RAW_FETCH_TIMEOUT, {
       headers: { "User-Agent": "RepoSec-Scanner" },
       cache: "no-store",
     });
@@ -233,8 +242,10 @@ interface TreeResponse {
 export async function fetchRepoData(
   owner: string,
   repo: string,
+  onProgress?: (stage: number) => void,
 ): Promise<RepoData> {
   const meta = await githubFetch<GithubRepoResponse>(`/repos/${owner}/${repo}`);
+  onProgress?.(0);
 
   if (meta.private) {
     throw new GitHubError(
@@ -249,6 +260,7 @@ export async function fetchRepoData(
   const tree = await githubFetch<TreeResponse>(
     `/repos/${owner}/${repo}/git/trees/${ref}?recursive=1`,
   );
+  onProgress?.(1);
 
   const blobEntries = tree.tree.filter((entry) => entry.type === "blob");
   const fileTree = blobEntries.map((entry) => entry.path);
@@ -277,6 +289,7 @@ export async function fetchRepoData(
       return { path, content };
     },
   );
+  onProgress?.(2);
 
   const files: RepoFile[] = fetched
     .filter(

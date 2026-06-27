@@ -246,10 +246,7 @@ function checkEnvironment(ctx: ScanContext): void {
   const exposed: Finding[] = [];
   for (const env of envFiles) {
     const f = findFile(ctx.repo.files, env);
-    if (!f) {
-      missingFile(ctx, env);
-      continue;
-    }
+    if (!f) continue;
     presentFile(ctx, env);
     const lines = getLines(f.content);
     const sample = lines

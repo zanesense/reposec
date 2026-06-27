@@ -16,7 +16,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { RepoInput } from "@/components/repo-input";
+import { PkgTabs } from "@/components/pkg-tabs";
+import { Reveal } from "@/components/reveal";
 
 type DoodleIcon = (props: { className?: string }) => React.ReactElement;
 
@@ -187,70 +188,68 @@ export default function Home() {
             <span className="block">before attackers do.</span>
           </h1>
 
+          <div className="mt-6 flex justify-center">
+            <PkgTabs />
+          </div>
+
           <p className="mx-auto mt-6 max-w-2xl text-base text-ink/80 sm:text-lg">
             RepoSec runs a static, read-only scan against any public GitHub
             repository and returns a security score, a checks table, and a
             list of fixes. No installs, no agent, no auth.
           </p>
-
-          <div className="mt-10 flex justify-center">
-            <RepoInput />
-          </div>
-
-          <div className="mt-8 inline-flex items-center gap-2 rounded-full border-[2px] border-ink bg-card px-3 py-1.5 text-xs font-semibold shadow-[2px_2px_0_0_#1a1a1a]">
-            <DoodleCheck className="h-4 w-4 text-accent" aria-hidden="true" />
-            Read-only. We never modify your repository.
-          </div>
         </div>
       </section>
+
 
       <section
         id="features"
         className="relative mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 sm:py-16"
       >
-        <div className="mb-10 flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="font-mono text-xs font-bold uppercase tracking-widest text-marker">
-              What we check
-            </p>
-            <h2 className="mt-2 font-display text-4xl font-bold tracking-tight sm:text-5xl">
-              Twelve static checks, all read-only.
-            </h2>
-            <Squiggle className="mt-1 h-2 w-32 text-marker" />
-            <p className="mt-3 max-w-xl text-base text-ink/80">
-              Each check is a static, read-only rule. Every result is
-              reproducible: re-run the scan and the output is identical.
-            </p>
+        <Reveal>
+          <div className="mb-10 flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="font-mono text-xs font-bold uppercase tracking-widest text-marker">
+                What we check
+              </p>
+              <h2 className="mt-2 font-display text-4xl font-bold tracking-tight sm:text-5xl">
+                Twelve static checks, all read-only.
+              </h2>
+              <Squiggle className="mt-1 h-2 w-32 text-marker" />
+              <p className="mt-3 max-w-xl text-base text-ink/80">
+                Each check is a static, read-only rule. Every result is
+                reproducible: re-run the scan and the output is identical.
+              </p>
+            </div>
+            <Button asChild variant="outline" className="hidden sm:inline-flex">
+              <Link href="#how">
+                How it works
+                <DoodleArrow className="h-5 w-5 doodle-arrow" />
+              </Link>
+            </Button>
           </div>
-          <Button asChild variant="outline" className="hidden sm:inline-flex">
-            <Link href="#how">
-              How it works
-              <DoodleArrow className="h-5 w-5 doodle-arrow" />
-            </Link>
-          </Button>
-        </div>
+        </Reveal>
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {CHECKS.map((c, i) => {
             const Icon = c.icon;
             return (
-              <Card
-                key={c.title}
-                className={`group transition-all duration-200 hover:-translate-y-1 hover:shadow-[6px_6px_0_0_#1a1a1a] ${c.tilt}`}
-                style={{ animationDelay: `${i * 60}ms` }}
-              >
-                <CardContent className="p-6">
-                  <div
-                    className={`inline-flex h-12 w-12 items-center justify-center rounded-xl border-[2.5px] border-ink shadow-[2px_2px_0_0_#1a1a1a] ${c.bg} transition-transform duration-200 group-hover:-rotate-6`}
-                  >
-                    <Icon className="h-7 w-7" aria-hidden="true" />
-                  </div>
-                  <h3 className="mt-4 font-display text-2xl font-bold leading-tight">
-                    {c.title}
-                  </h3>
-                  <p className="mt-2 text-sm text-ink/80">{c.description}</p>
-                </CardContent>
-              </Card>
+              <Reveal key={c.title} delay={i * 0.05}>
+                <Card
+                  className={`group transition-all duration-200 hover:-translate-y-1 hover:shadow-[6px_6px_0_0_#1a1a1a] ${c.tilt}`}
+                >
+                  <CardContent className="p-6">
+                    <div
+                      className={`inline-flex h-12 w-12 items-center justify-center rounded-xl border-[2.5px] border-ink shadow-[2px_2px_0_0_#1a1a1a] ${c.bg} transition-transform duration-200 group-hover:-rotate-6`}
+                    >
+                      <Icon className="h-7 w-7" aria-hidden="true" />
+                    </div>
+                    <h3 className="mt-4 font-display text-2xl font-bold leading-tight">
+                      {c.title}
+                    </h3>
+                    <p className="mt-2 text-sm text-ink/80">{c.description}</p>
+                  </CardContent>
+                </Card>
+              </Reveal>
             );
           })}
         </div>
@@ -260,52 +259,56 @@ export default function Home() {
         id="how"
         className="relative mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 sm:py-16"
       >
-        <div className="mb-10 max-w-2xl">
-          <p className="font-mono text-xs font-bold uppercase tracking-widest text-marker">
-            How it works
-          </p>
-          <h2 className="mt-2 font-display text-4xl font-bold tracking-tight sm:text-5xl">
-            Three steps, no installs.
-          </h2>
-          <Squiggle className="mt-1 h-2 w-32 text-marker" />
-          <p className="mt-3 text-base text-ink/80">
-            RepoSec is a Next.js app that talks to the public GitHub API. No
-            auth, no tokens, no agent, no signup.
-          </p>
-        </div>
+        <Reveal>
+          <div className="mb-10 max-w-2xl">
+            <p className="font-mono text-xs font-bold uppercase tracking-widest text-marker">
+              How it works
+            </p>
+            <h2 className="mt-2 font-display text-4xl font-bold tracking-tight sm:text-5xl">
+              Three steps, no installs.
+            </h2>
+            <Squiggle className="mt-1 h-2 w-32 text-marker" />
+            <p className="mt-3 text-base text-ink/80">
+              RepoSec is a Next.js app that talks to the public GitHub API. No
+              auth, no tokens, no agent, no signup.
+            </p>
+          </div>
+        </Reveal>
 
         <div className="grid gap-5 md:grid-cols-3">
           {STEPS.map((step, i) => {
             const Icon = step.icon;
             return (
-              <Card
-                key={step.n}
-                className={`relative overflow-hidden ${
-                  i % 2 === 0 ? "sticker-tilt-flat-l" : "sticker-tilt-flat-r"
-                }`}
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border-[2.5px] border-ink shadow-[2px_2px_0_0_#1a1a1a] ${step.bg}`}
-                    >
-                      <Icon className="h-5 w-5" aria-hidden="true" />
-                    </span>
-                    <span className="font-display text-3xl font-bold text-marker">
-                      {step.n}
-                    </span>
-                  </div>
-                  <h3 className="mt-4 font-display text-2xl font-bold leading-snug">
-                    {step.title}
-                  </h3>
-                  <p className="mt-2 text-sm text-ink/80">{step.body}</p>
-                </CardContent>
-              </Card>
+              <Reveal key={step.n} delay={i * 0.1}>
+                <Card
+                  className={`relative overflow-hidden ${
+                    i % 2 === 0 ? "sticker-tilt-flat-l" : "sticker-tilt-flat-r"
+                  }`}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border-[2.5px] border-ink shadow-[2px_2px_0_0_#1a1a1a] ${step.bg}`}
+                      >
+                        <Icon className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <span className="font-display text-3xl font-bold text-marker">
+                        {step.n}
+                      </span>
+                    </div>
+                    <h3 className="mt-4 font-display text-2xl font-bold leading-snug">
+                      {step.title}
+                    </h3>
+                    <p className="mt-2 text-sm text-ink/80">{step.body}</p>
+                  </CardContent>
+                </Card>
+              </Reveal>
             );
           })}
         </div>
       </section>
 
+      <Reveal>
       <section className="relative mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
         <Card className="relative overflow-hidden border-accent">
           <div
@@ -357,7 +360,7 @@ export default function Home() {
             </div>
             <div className="flex flex-col gap-3 sm:items-end">
               <Button asChild size="xl">
-                <Link href="#top">
+                <Link href="/scanner">
                   Scan a repo
                   <DoodleArrow className="h-5 w-5 doodle-arrow" />
                 </Link>
@@ -369,7 +372,9 @@ export default function Home() {
           </CardContent>
         </Card>
       </section>
+      </Reveal>
 
+      <Reveal>
       <section className="relative mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
         <Card className="border-ink">
           <CardContent className="grid gap-4 p-6 sm:grid-cols-[auto_1fr] sm:items-center sm:p-8">
@@ -393,6 +398,7 @@ export default function Home() {
           </CardContent>
         </Card>
       </section>
+      </Reveal>
     </div>
   );
 }

@@ -39,7 +39,7 @@ export function Footer() {
               </li>
               <li>
                 <Link
-                  href="/scan"
+                  href="/scanner"
                   className="transition-colors duration-200 hover:text-marker"
                 >
                   Scan a repo

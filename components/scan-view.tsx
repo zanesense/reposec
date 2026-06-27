@@ -28,16 +28,6 @@ interface ErrorState {
   code?: string;
 }
 
-const STAGES = [
-  "Fetching repository metadata",
-  "Reading the file tree",
-  "Pulling important files",
-  "Checking deployed JavaScript bundles",
-  "Running rule-based checks",
-  "Scanning for secret patterns",
-  "Scoring and grouping findings",
-];
-
 export function ScanView() {
   const params = useSearchParams();
   const ownerParam = params.get("owner") ?? "";
@@ -58,36 +48,31 @@ export function ScanView() {
   const [report, setReport] = React.useState<ScanReport | null>(null);
   const [error, setError] = React.useState<ErrorState | null>(null);
   const [stage, setStage] = React.useState(0);
-  const stageTimer = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const stageLabels = React.useMemo(() => {
+    const labels = [
+      "Fetching repository metadata",
+      "Reading the file tree",
+      "Pulling important files",
+    ];
+    if (siteUrl) labels.push("Checking deployed JavaScript bundles");
+    labels.push("Running rule-based checks");
+    if (verifySecrets) labels.push("Scanning for secret patterns");
+    labels.push("Scoring and grouping findings");
+    return labels;
+  }, [siteUrl, verifySecrets]);
 
   React.useEffect(() => {
     if (status === "scanning" && initialUrl) {
       runScan(initialUrl);
     }
-    return () => {
-      if (stageTimer.current) clearInterval(stageTimer.current);
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  function startProgress() {
-    setStage(0);
-    if (stageTimer.current) clearInterval(stageTimer.current);
-    stageTimer.current = setInterval(() => {
-      setStage((s) => Math.min(STAGES.length - 1, s + 1));
-    }, 1100);
-  }
-
-  function stopProgress() {
-    if (stageTimer.current) clearInterval(stageTimer.current);
-    stageTimer.current = null;
-  }
 
   async function runScan(target: string) {
     setStatus("scanning");
     setError(null);
     setReport(null);
-    startProgress();
+    setStage(0);
     try {
       const res = await fetch("/api/scan", {
         method: "POST",
@@ -98,22 +83,41 @@ export function ScanView() {
           verify: verifySecrets || undefined,
         }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        setStatus("error");
-        setError({ message: data.error ?? "Scan failed.", code: data.code });
-        toast.error(data.error ?? "Scan failed.");
-        return;
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const event = JSON.parse(line);
+            if (event.type === "progress") {
+              setStage(event.step);
+            } else if (event.type === "complete") {
+              setReport(event.report as ScanReport);
+              setStatus("done");
+              toast.success("Scan complete!", {
+                description: `Score ${event.report.score} / 100`,
+              });
+            } else if (event.type === "error") {
+              setStatus("error");
+              setError({ message: event.message, code: event.code });
+              toast.error(event.message);
+            }
+          } catch {
+            // skip malformed lines
+          }
+        }
       }
-      stopProgress();
-      setStage(STAGES.length - 1);
-      setReport(data.report as ScanReport);
-      setStatus("done");
-      toast.success("Scan complete!", {
-        description: `Score ${data.report.score} / 100`,
-      });
     } catch (err) {
-      stopProgress();
       const message =
         err instanceof Error ? err.message : "Network error during scan.";
       setStatus("error");
@@ -170,7 +174,12 @@ export function ScanView() {
               </div>
             </div>
             <ul className="mt-8 space-y-3">
-              {STAGES.map((label, i) => {
+              {stageLabels.length === 0 && (
+                <li className="flex items-center gap-3 text-sm text-muted-foreground">
+                  Starting scan...
+                </li>
+              )}
+              {stageLabels.map((label, i) => {
                 const done = i < stage;
                 const active = i === stage;
                 return (
@@ -210,7 +219,7 @@ export function ScanView() {
             <div className="relative mt-8 h-2 overflow-hidden rounded-full border-[2px] border-ink bg-card">
               <div
                 className="h-full rounded-full bg-accent transition-all duration-500"
-                style={{ width: `${((stage + 1) / STAGES.length) * 100}%` }}
+                style={{ width: `${((Math.min(stage, stageLabels.length - 1) + 1) / stageLabels.length) * 100}%` }}
               />
             </div>
           </CardContent>

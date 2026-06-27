@@ -8,12 +8,12 @@ import { cn } from "@/lib/utils";
 
 const STAR_URL =
   process.env.NEXT_PUBLIC_REPO_URL ?? "https://github.com/zanesense/reposec";
-const STORAGE_KEY = "reposec:starPromptSeen:v1";
+const SESSION_KEY = "reposec:starPromptSeen:session";
 
 export function isStarPromptSeen(): boolean {
   if (typeof window === "undefined") return true;
   try {
-    return window.localStorage.getItem(STORAGE_KEY) === "1";
+    return window.sessionStorage.getItem(SESSION_KEY) === "1";
   } catch {
     return true;
   }
@@ -22,7 +22,7 @@ export function isStarPromptSeen(): boolean {
 export function markStarPromptSeen(): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, "1");
+    window.sessionStorage.setItem(SESSION_KEY, "1");
   } catch {
     // ignore (private mode, quota, etc.)
   }
@@ -31,7 +31,7 @@ export function markStarPromptSeen(): void {
 export function resetStarPromptSeen(): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.removeItem(STORAGE_KEY);
+    window.sessionStorage.removeItem(SESSION_KEY);
   } catch {
     // ignore
   }
@@ -96,7 +96,7 @@ export function StarPrompt({
               className="mt-2 text-sm text-ink/80"
             >
               RepoSec is free, open source, and never modifies your repo. A
-              star helps other developers find it. We only ask once.
+              star helps other developers find it.
             </p>
           </div>
         </div>

@@ -30,6 +30,12 @@ export function Navbar() {
             How it works
           </Link>
           <Link
+            href="/scanner"
+            className="rounded-lg px-2.5 py-1.5 text-sm font-semibold text-ink/70 transition-colors duration-200 hover:text-ink"
+          >
+            Scan
+          </Link>
+          <Link
             href="#features"
             className="rounded-lg px-2.5 py-1.5 text-sm font-semibold text-ink/70 transition-colors duration-200 hover:text-ink"
           >
